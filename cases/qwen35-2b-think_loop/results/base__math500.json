@@ -1,0 +1,20 @@
+{
+ "summary": {
+  "n": 500,
+  "acc": 0.68,
+  "cut_share": 0.32,
+  "finished": 340,
+  "acc_when_finished": 1.0,
+  "mean_tokens": 17178.442,
+  "median_correct_tokens": 6704,
+  "kinds": {
+   "correct": 340,
+   "cut_other": 52,
+   "cut_loop": 108
+  },
+  "by_source": {
+   "math500": 0.68
+  }
+ },
+ "paired": null
+}

@@ -1,0 +1,39 @@
+{
+ "summary": {
+  "n": 160,
+  "acc": 0.15625,
+  "cut_share": 0.83125,
+  "finished": 27,
+  "acc_when_finished": 0.9259259259259259,
+  "mean_tokens": 30318.8375,
+  "median_correct_tokens": 16712,
+  "kinds": {
+   "cut_loop": 117,
+   "correct": 25,
+   "cut_other": 16,
+   "finished_no_answer": 2
+  },
+  "by_source": {
+   "amc23": 0.15625
+  }
+ },
+ "paired": {
+  "n": 160,
+  "problems": 40,
+  "base_acc": 0.0,
+  "edit_acc": 0.15625,
+  "gain": 0.15625,
+  "se": 0.04877300574850385,
+  "rescues": 25,
+  "losses": 0,
+  "base_cut": 1.0,
+  "edit_cut": 0.83125,
+  "by_source": {
+   "amc23": {
+    "n": 160,
+    "base": 0.0,
+    "edit": 0.15625
+   }
+  }
+ }
+}

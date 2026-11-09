@@ -1,0 +1,41 @@
+{
+ "name": "L15L19L23_k64_a6",
+ "base": "Qwen/Qwen3.5-0.8B",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "L15L19L23_k64_a6.npz#u15",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "L15L19L23_k64_a6.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "L15L19L23_k64_a6.npz#u19",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "L15L19L23_k64_a6.npz#cols19"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.23.mlp.down_proj.weight",
+   "u": "L15L19L23_k64_a6.npz#u23",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "L15L19L23_k64_a6.npz#cols23"
+  }
+ ],
+ "meta": {
+  "layers": [
+   15,
+   19,
+   23
+  ],
+  "topk": 64,
+  "alpha": 6.0,
+  "random_control": false,
+  "directions": "directions.npz"
+ }
+}

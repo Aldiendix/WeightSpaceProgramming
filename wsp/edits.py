@@ -1,0 +1,178 @@
+"""Weight edits as declarative, reproducible specs.
+
+A spec (JSON: {name, base, ops, meta}) lists operations on named tensors of a base model. `build` applies them in
+float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
+exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit.
+
+Operations ("u", "cols", "rows" are inline lists or "file.npz#key" relative to the spec):
+  dir_ablate  side "out" (W writes into the residual stream, e.g. down_proj): W -= alpha * u (u^T W)[:, cols]
+              side "in"  (W reads from it, e.g. up_proj):                      W -= alpha * (W u)[rows] u^T
+  scale_cols  W[:, cols] *= factor        scale_rows  W[rows, :] *= factor
+Which tensors may change and how much: rules.json (enforced here for tensors and ops, budgets via `wsp.rules check`).
+"""
+import json
+import os
+import re
+from pathlib import Path
+
+import numpy as np
+
+from .common import sha256_bytes, write_json
+from .rules import RULES, tensor_violation
+
+
+def snapshot(repo):
+    if os.path.isdir(repo):
+        return Path(repo)
+    from huggingface_hub import snapshot_download  # noqa: PLC0415
+    return Path(snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.txt", "*.jinja", "*.model",
+                                                         "tokenizer*", "*.py"]))
+
+
+def tensor_index(model_dir):
+    """tensor name -> shard file name"""
+    idx = Path(model_dir) / "model.safetensors.index.json"
+    if idx.exists():
+        return json.load(open(idx))["weight_map"]
+    from safetensors import safe_open  # noqa: PLC0415
+    with safe_open(str(Path(model_dir) / "model.safetensors"), "pt") as f:
+        return {k: "model.safetensors" for k in f.keys()}
+
+
+def decoder_prefix(names):
+    """Name prefix of the main decoder stack: the one with the most layers that is not an auxiliary stack."""
+    count = {}
+    for n in names:
+        m = re.match(r"(.*)layers\.(\d+)\.", n)
+        if m and not re.search(RULES["editable_tensors"]["auxiliary_stack_pattern"], m.group(1)):
+            count[m.group(1)] = max(count.get(m.group(1), 0), int(m.group(2)) + 1)
+    return max(count, key=count.get)
+
+
+def _resolve(v, base_dir):
+    if v is None or isinstance(v, (list, int, float)):
+        return None if v is None else np.asarray(v)
+    path, _, key = str(v).partition("#")
+    z = np.load(Path(base_dir) / path)
+    return np.asarray(z[key] if key else z)
+
+
+def _mask(sel, like):
+    import torch  # noqa: PLC0415
+    if sel is None:
+        return torch.ones_like(like)
+    m = torch.zeros_like(like)
+    m[torch.as_tensor(sel, dtype=torch.long)] = 1
+    return m
+
+
+def apply_ops(tensors, ops, base_dir):
+    """tensors: name -> float32 torch tensor, modified in place."""
+    import torch  # noqa: PLC0415
+
+    for op in ops:
+        W = tensors[op["tensor"]]
+        if op["op"] == "dir_ablate":
+            u = torch.tensor(_resolve(op["u"], base_dir), dtype=torch.float32).flatten()
+            u, a = u / u.norm(), float(op.get("alpha", 1.0))
+            if op.get("side", "out") == "out":
+                p = u @ W
+                W -= a * torch.outer(u, p * _mask(_resolve(op.get("cols"), base_dir), p))
+            else:
+                p = W @ u
+                W -= a * torch.outer(p * _mask(_resolve(op.get("rows"), base_dir), p), u)
+        elif op["op"] in ("scale_cols", "scale_rows"):
+            dim = 1 if op["op"] == "scale_cols" else 0
+            sel = torch.as_tensor(_resolve(op["cols" if dim else "rows"], base_dir), dtype=torch.long)
+            if len(sel) >= W.shape[dim]:
+                raise ValueError("refused: whole-tensor rescaling")
+            W.index_copy_(dim, sel, W.index_select(dim, sel) * float(op["factor"]))
+        else:
+            raise ValueError(f"unknown op {op['op']}")
+
+
+def build(spec_path, out_dir, diff_dir=None):
+    """Apply a spec to its base model -> (model_dir, manifest)."""
+    import torch  # noqa: PLC0415
+    from safetensors import safe_open  # noqa: PLC0415
+    from safetensors.torch import load_file, save_file  # noqa: PLC0415
+
+    spec_path, out_dir = Path(spec_path), Path(out_dir)
+    spec = json.load(open(spec_path))
+    base = snapshot(spec["base"])
+    index = tensor_index(base)
+    prefix = decoder_prefix(index)
+    names = sorted({op["tensor"] for op in spec["ops"]})
+    bad = [op["op"] for op in spec["ops"] if op["op"] not in RULES["ops"]["allowed"]]
+    orig = {}
+    for n in names:
+        with safe_open(str(base / index[n]), "pt") as f:
+            orig[n] = f.get_tensor(n)
+    bad += [f"{n}: {w}" for n in names if (w := tensor_violation(n, prefix, orig[n].dim()))]
+    if bad:
+        raise ValueError(f"refused by rules.json: {bad}")
+    work = {n: t.to(torch.float32).clone() for n, t in orig.items()}
+    apply_ops(work, spec["ops"], spec_path.parent)
+    edited = {n: work[n].to(orig[n].dtype).contiguous() for n in names}
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    shards = {index[n] for n in names}
+    for f in base.iterdir():
+        dst = out_dir / f.name
+        if dst.exists() or dst.is_symlink():
+            dst.unlink()
+        if f.name not in shards:
+            os.symlink(f.resolve(), dst)
+    for sh in shards:
+        t = load_file(str(base / sh))
+        t.update({n: edited[n] for n in names if index[n] == sh})
+        save_file(t, str(out_dir / sh), metadata={"format": "pt"})
+
+    def bits(x):
+        return (x.view(torch.int16) if x.dtype == torch.bfloat16 else x).numpy()
+
+    man, diff = {"spec": spec, "base_dir": str(base), "tensors": []}, {}
+    for i, n in enumerate(names):
+        a, b = bits(orig[n]), bits(edited[n])
+        changed = np.flatnonzero(a.reshape(-1) != b.reshape(-1))
+        diff[f"t{i}_idx"], diff[f"t{i}_val"] = changed.astype(np.int64), b.reshape(-1)[changed]
+        of, ef = orig[n].float(), edited[n].float()
+        man["tensors"].append({"name": n, "shape": list(orig[n].shape), "dtype": str(orig[n].dtype),
+                               "changed_entries": int(len(changed)),
+                               "changed_cols": int((of != ef).any(0).sum()) if of.dim() == 2 else None,
+                               "relative_change": float((ef - of).norm() / of.norm()), "base_norm": float(of.norm()),
+                               "base_sha256": sha256_bytes(a.tobytes()), "edited_sha256": sha256_bytes(b.tobytes())})
+    man["changed_entries_total"] = sum(t["changed_entries"] for t in man["tensors"])
+    write_json(out_dir / "wsp_edit_manifest.json", man)
+    if diff_dir:
+        Path(diff_dir).mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(Path(diff_dir) / "diff.npz", **diff)
+        write_json(Path(diff_dir) / "manifest.json", man)
+    return out_dir, man
+
+
+def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random_control=False, seed=0):
+    """Spec ablating each layer's direction from its MLP down_proj, restricted to the top-k writer neurons.
+    random_control: a random unit direction orthogonal to u instead (same layers, columns and alpha)."""
+    d = np.load(directions)
+    prefix = decoder_prefix(tensor_index(snapshot(base)))
+    rng, arrays, ops = np.random.default_rng(seed), {}, []
+    for l in layers:
+        u = d["U"][l].astype(np.float32)
+        if random_control:
+            r = rng.standard_normal(u.shape).astype(np.float32)
+            u = (r - (r @ u) * u) / np.linalg.norm(r - (r @ u) * u)
+        arrays[f"u{l}"] = u
+        op = {"op": "dir_ablate", "tensor": f"{prefix}layers.{l}.mlp.down_proj.weight", "u": f"{name}.npz#u{l}",
+              "alpha": alpha, "side": "out"}
+        if topk:
+            arrays[f"cols{l}"] = np.argsort(-d["writer"][l])[:topk].astype(np.int64)
+            op["cols"] = f"{name}.npz#cols{l}"
+        ops.append(op)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(out_dir / f"{name}.npz", **arrays)
+    spec = {"name": name, "base": base, "ops": ops, "meta": {"directions": Path(directions).name, "layers": list(layers),
+                                                             "topk": topk, "alpha": alpha, "random_control": random_control}}
+    write_json(out_dir / f"{name}.json", spec)
+    return out_dir / f"{name}.json"

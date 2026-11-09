@@ -1,0 +1,15 @@
+{
+ "team": "example",
+ "entry": "qwen35-0.8b-loop",
+ "track": "lite",
+ "profile": "qwen35-0.8b-think",
+ "edit": "edit.json",
+ "targets": [
+  "bench:math500"
+ ],
+ "practice_data": [
+  "practice:gsm8k_train",
+  "practice:math_train"
+ ],
+ "forward_passes": 3
+}

@@ -1,0 +1,32 @@
+{
+ "name": "L15L19_k64_a3",
+ "base": "Qwen/Qwen3.5-0.8B",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "L15L19_k64_a3.npz#u15",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15L19_k64_a3.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "L15L19_k64_a3.npz#u19",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15L19_k64_a3.npz#cols19"
+  }
+ ],
+ "meta": {
+  "layers": [
+   15,
+   19
+  ],
+  "topk": 64,
+  "alpha": 3.0,
+  "random_control": false,
+  "directions": "directions.npz"
+ }
+}

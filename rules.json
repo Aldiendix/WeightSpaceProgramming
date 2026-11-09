@@ -1,0 +1,119 @@
+{
+ "version": 1,
+ "about": "Single source of truth for what a weight edit and a submission may do. Read by wsp/rules.py (local self-check, edit builds) and by the organizer's PR review. README's limits table is generated from this file.",
+ "editable_tensors": {
+  "about": "Only 2-D weight matrices inside the main decoder layers (the layer stack with the most layers, not auxiliary stacks such as MTP heads or vision towers). Never embeddings, output head, norms, biases or other 1-D / 3-D parameters.",
+  "require_decoder_layer": true,
+  "require_ndim": 2,
+  "require_suffix": ".weight",
+  "forbid_pattern": "norm|embed|lm_head|bias",
+  "auxiliary_stack_pattern": "mtp|visual|vision"
+ },
+ "ops": {
+  "about": "Edits are declarative: whitelisted ops that are deterministic functions of the official base weights and the spec's arrays. New ops enter only through a reviewed core PR.",
+  "allowed": [
+   "dir_ablate",
+   "scale_cols",
+   "scale_rows"
+  ]
+ },
+ "tracks": {
+  "lite": {
+   "about": "Few, targeted edits; sized so that the example cases fit with a wide margin.",
+   "max_tensors": 8,
+   "max_payload_bytes": 262144,
+   "max_relative_change_per_tensor": 0.25,
+   "max_global_relative_change": 0.05
+  },
+  "open": {
+   "about": "Any number of editable tensors, same information budget scaled up.",
+   "max_tensors": null,
+   "max_payload_bytes": 4194304,
+   "max_relative_change_per_tensor": 0.5,
+   "max_global_relative_change": 0.2
+  }
+ },
+ "payload": {
+  "about": "Information budget = bytes of every array in the spec (npz arrays as stored, inline lists as float32 / int64). This is the main guard against importing outside weights: a dense weight delta, even sparse or low-rank, is megabytes or more."
+ },
+ "submission": {
+  "about": "A PR adds exactly one directory submissions/<team>/<entry>/ and touches nothing else.",
+  "path_pattern": "^submissions/[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9_.-]*/",
+  "required_files": [
+   "entry.json",
+   "METHOD.md"
+  ],
+  "allowed_extensions": [
+   ".json",
+   ".npz",
+   ".py",
+   ".md"
+  ],
+  "max_total_bytes": 2097152,
+  "entry_fields": [
+   "team",
+   "entry",
+   "track",
+   "profile",
+   "edit",
+   "targets",
+   "practice_data",
+   "forward_passes"
+  ]
+ },
+ "derivation": {
+  "about": "derive/ code re-derives the spec from the official base model and practice data only, loading models and data exclusively through the wsp API (wsp.probe, wsp.gen, wsp.data practice sets). For top-ranked entries the organizer re-runs it offline; generation is not bit-deterministic, so the re-derived spec must match within tolerance (reproduction) and score within tolerance.",
+  "practice_data": [
+   "practice:gsm8k_train",
+   "practice:math_train"
+  ],
+  "max_forward_passes": 50,
+  "forward_pass": "one generation of up to 512 answers or one teacher-forced read of up to 1024 texts",
+  "banned_code_patterns": [
+   "import\\s+(socket|requests|urllib|http)",
+   "from\\s+(socket|requests|urllib|http)",
+   "subprocess",
+   "os\\.system",
+   "load_dataset",
+   "bench:",
+   "private:",
+   "snapshot_download",
+   "hf_hub_download",
+   "from_pretrained"
+  ],
+  "reproduction": {
+   "same_ops_and_tensors": true,
+   "min_direction_cosine": 0.99,
+   "min_index_overlap": 0.9,
+   "max_score_diff_se": 2.0
+  }
+ },
+ "protected_paths": {
+  "about": "Evaluation-defining files: prompts, chat mode, sampling, grading, benchmarks, seeds, statistics, ops and these rules. A ranked PR must not change them; changes go through separate core PRs.",
+  "paths": [
+   "rules.json",
+   "wsp/",
+   "scripts/",
+   "gpu",
+   "cases/",
+   ".claude/"
+  ]
+ },
+ "evaluation": {
+  "about": "Official runs: the organizer builds the spec on the hash-checked base, then runs base and edit paired (same problems and per-problem seeds) with the profile's model-card sampling.",
+  "samples_per_problem": 4,
+  "public_sets": [
+   "bench:math500",
+   "bench:gsm8k500",
+   "bench:amc23"
+  ],
+  "private_sets": "private:<name>, loaded from $WSP_PRIVATE_DIR on the organizer's machine only",
+  "guardrail_sets": [
+   "bench:mmlupro500",
+   "bench:ifeval"
+  ],
+  "guardrail_max_drop_se": 2.0,
+  "ranking": "private-set accuracy of the edited model; ties broken by the lower confidence bound gain - 2*SE",
+  "max_submissions_per_team_per_week": 2
+ }
+}

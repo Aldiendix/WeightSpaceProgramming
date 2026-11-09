@@ -1,0 +1,66 @@
+{
+ "spec": {
+  "name": "L15L19_k64_a3",
+  "base": "Qwen/Qwen3.5-0.8B",
+  "ops": [
+   {
+    "op": "dir_ablate",
+    "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+    "u": "L15L19_k64_a3.npz#u15",
+    "alpha": 3.0,
+    "side": "out",
+    "cols": "L15L19_k64_a3.npz#cols15"
+   },
+   {
+    "op": "dir_ablate",
+    "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+    "u": "L15L19_k64_a3.npz#u19",
+    "alpha": 3.0,
+    "side": "out",
+    "cols": "L15L19_k64_a3.npz#cols19"
+   }
+  ],
+  "meta": {
+   "dirs": "cases/A_qwen35-0.8b-think_math500/dirs_v1.npz",
+   "layers": [
+    15,
+    19
+   ],
+   "topk": 64,
+   "alpha": 3.0,
+   "random_control": false
+  }
+ },
+ "base_dir": "/workspace/hf/hub/models--Qwen--Qwen3.5-0.8B/snapshots/2fc06364715b967f1860aea9cf38778875588b17",
+ "tensors": [
+  {
+   "name": "model.language_model.layers.15.mlp.down_proj.weight",
+   "shape": [
+    1024,
+    3584
+   ],
+   "dtype": "torch.bfloat16",
+   "changed_entries": 64647,
+   "changed_cols": 64,
+   "changed_rows": 1024,
+   "relative_change": 0.053335513919591904,
+   "base_sha256": "ef60d2c687bab19464dca9c8bfd7777e46ad226df0c9e25643b0bab04b5a1cca",
+   "edited_sha256": "1b8800f6f3adec11d6706bd1f9b281b7df99a45a419e40c947756da8732a4446"
+  },
+  {
+   "name": "model.language_model.layers.19.mlp.down_proj.weight",
+   "shape": [
+    1024,
+    3584
+   ],
+   "dtype": "torch.bfloat16",
+   "changed_entries": 64699,
+   "changed_cols": 64,
+   "changed_rows": 1023,
+   "relative_change": 0.04987458139657974,
+   "base_sha256": "638eedeb701b94aa861f4438e615c07ec6c60ee703db1bfee2de577bb6498c3e",
+   "edited_sha256": "244fd5134dc4e7813a865d7dcdca43f4c327c6ee56b4491e295e036d81f6ec25"
+  }
+ ],
+ "changed_entries_total": 129346
+}

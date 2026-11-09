@@ -1,0 +1,5 @@
+.config
+.work/
+__pycache__/
+*.pyc
+*.safetensors

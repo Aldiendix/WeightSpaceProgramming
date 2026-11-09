@@ -1,0 +1,19 @@
+{
+ "summary": {
+  "n": 160,
+  "acc": 0.0,
+  "cut_share": 1.0,
+  "finished": 0,
+  "acc_when_finished": null,
+  "mean_tokens": 32768.0,
+  "median_correct_tokens": null,
+  "kinds": {
+   "cut_loop": 151,
+   "cut_other": 9
+  },
+  "by_source": {
+   "amc23": 0.0
+  }
+ },
+ "paired": null
+}

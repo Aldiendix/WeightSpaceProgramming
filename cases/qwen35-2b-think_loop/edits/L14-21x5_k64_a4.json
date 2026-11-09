@@ -1,0 +1,59 @@
+{
+ "name": "L14-21x5_k64_a4",
+ "base": "Qwen/Qwen3.5-2B",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.14.mlp.down_proj.weight",
+   "u": "L14-21x5_k64_a4.npz#u14",
+   "alpha": 4.0,
+   "side": "out",
+   "cols": "L14-21x5_k64_a4.npz#cols14"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "L14-21x5_k64_a4.npz#u15",
+   "alpha": 4.0,
+   "side": "out",
+   "cols": "L14-21x5_k64_a4.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.16.mlp.down_proj.weight",
+   "u": "L14-21x5_k64_a4.npz#u16",
+   "alpha": 4.0,
+   "side": "out",
+   "cols": "L14-21x5_k64_a4.npz#cols16"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "L14-21x5_k64_a4.npz#u19",
+   "alpha": 4.0,
+   "side": "out",
+   "cols": "L14-21x5_k64_a4.npz#cols19"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.21.mlp.down_proj.weight",
+   "u": "L14-21x5_k64_a4.npz#u21",
+   "alpha": 4.0,
+   "side": "out",
+   "cols": "L14-21x5_k64_a4.npz#cols21"
+  }
+ ],
+ "meta": {
+  "layers": [
+   14,
+   15,
+   16,
+   19,
+   21
+  ],
+  "topk": 64,
+  "alpha": 4.0,
+  "random_control": false,
+  "directions": "directions.npz"
+ }
+}

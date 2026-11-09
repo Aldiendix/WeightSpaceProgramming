@@ -1,0 +1,31 @@
+{
+ "name": "edit",
+ "base": "Qwen/Qwen3.5-0.8B",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "edit.npz#u15",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "edit.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "edit.npz#u19",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "edit.npz#cols19"
+  }
+ ],
+ "meta": {
+  "derived_by": "derive/derive.py",
+  "layers": [
+   15,
+   19
+  ],
+  "topk": 64,
+  "alpha": 6.0
+ }
+}

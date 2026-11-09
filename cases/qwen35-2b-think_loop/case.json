@@ -1,0 +1,5 @@
+{
+ "profile": "qwen35-2b-think",
+ "contrast": "loop",
+ "frozen": "L15L19_k64_a6"
+}
