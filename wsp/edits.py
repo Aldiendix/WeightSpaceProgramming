@@ -4,7 +4,9 @@ A spec (JSON: {name, base, ops, meta, parent?}; base = a profile name, see profi
 tensors of the base model. "parent" (a path relative to the spec) stacks it on another spec, e.g. the current
 champion's edit: the parent chain is applied first, then the spec's own ops. `build` applies them in
 float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
-exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit.
+exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit. The manifest measures
+changes both against the base (whole chain) and against the parent model (own ops only: own_tensors,
+relative_change_vs_parent).
 
 Operations ("u", "cols", "rows" are inline lists or "file.npz#key" relative to the spec):
   dir_ablate  side "out" (W writes into the residual stream, e.g. down_proj): W -= alpha * u (u^T W)[:, cols]
@@ -79,9 +81,24 @@ def load_chain(spec_path):
     return chain
 
 
+PUBLISHED = "edit.json"  # a published edit is a directory edit/ with edit.json (+ edit.npz, parent/, ...)
+
+
+def copy_parent(spec_path, dst):
+    """Copy an inherited edit into dst: a published edit directory verbatim (byte-identical, so it can be checked
+    against its publication), any other spec by `export`. Returns the copied spec path."""
+    import shutil  # noqa: PLC0415
+
+    spec_path = Path(spec_path)
+    if spec_path.name == PUBLISHED:
+        shutil.copytree(spec_path.parent, dst, dirs_exist_ok=True)
+        return Path(dst) / PUBLISHED
+    return export(spec_path, dst, json.load(open(spec_path)).get("name") or spec_path.stem)
+
+
 def export(spec_path, dst, name):
-    """Copy a spec self-contained into dst as <name>.json (+ <name>.npz holding all its arrays); its parent chain goes
-    to dst/parent/ recursively. Returns the new spec path."""
+    """Copy a spec self-contained into dst as <name>.json (+ <name>.npz holding its own arrays); its parent chain goes
+    to dst/parent/ (see copy_parent). Returns the new spec path."""
     src, dst = Path(spec_path), Path(dst)
     spec, arrays = json.load(open(src)), {}
     for op in spec["ops"]:
@@ -93,9 +110,7 @@ def export(spec_path, dst, name):
                 arrays[new] = _resolve(ref, src.parent)
                 op[k] = f"{name}.npz#{new}"
     if spec.get("parent"):
-        par_src = src.parent / spec["parent"]
-        par = export(par_src, dst / "parent", json.load(open(par_src)).get("name") or par_src.stem)
-        spec["parent"] = os.path.relpath(par, dst)
+        spec["parent"] = os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst)
     spec["name"] = name
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
@@ -145,9 +160,13 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
         with safe_open(str(base / index[n]), "pt") as f:
             orig[n] = f.get_tensor(n)
     work = {n: t.to(torch.float32).clone() for n, t in orig.items()}
-    for s, d in chain:  # parents first
+    for i, (s, d) in enumerate(chain):  # parents first; each link yields a real model (rounded to the base dtype),
+        if i == len(chain) - 1:         # so a child starts from exactly the parent model's weights
+            parent = {n: work[n].to(orig[n].dtype) for n in names}
         apply_ops(work, s["ops"], d)
+        work = {n: w.to(orig[n].dtype).to(torch.float32) for n, w in work.items()}
     edited = {n: work[n].to(orig[n].dtype).contiguous() for n in names}
+    own = sorted({op["tensor"] for op in spec["ops"]})
 
     out_dir.mkdir(parents=True, exist_ok=True)
     shards = {index[n] for n in names}
@@ -165,16 +184,19 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     def bits(x):
         return (x.view(torch.int16) if x.dtype == torch.bfloat16 else x).numpy()
 
-    man, diff = {"spec": spec, "chain": [s.get("name") for s, _ in chain], "base_dir": str(base), "tensors": []}, {}
+    man = {"spec": spec, "chain": [s.get("name") for s, _ in chain], "base_dir": str(base), "own_tensors": own,
+           "tensors": []}
+    diff = {}
     for i, n in enumerate(names):
         a, b = bits(orig[n]), bits(edited[n])
         changed = np.flatnonzero(a.reshape(-1) != b.reshape(-1))
         diff[f"t{i}_idx"], diff[f"t{i}_val"] = changed.astype(np.int64), b.reshape(-1)[changed]
-        of, ef = orig[n].float(), edited[n].float()
+        of, pf, ef = orig[n].float(), parent[n].float(), edited[n].float()
         man["tensors"].append({"name": n, "shape": list(orig[n].shape), "dtype": str(orig[n].dtype),
                                "changed_entries": int(len(changed)),
                                "changed_cols": int((of != ef).any(0).sum()) if of.dim() == 2 else None,
                                "relative_change": float((ef - of).norm() / of.norm()), "base_norm": float(of.norm()),
+                               "relative_change_vs_parent": float((ef - pf).norm() / pf.norm()), "parent_norm": float(pf.norm()),
                                "base_sha256": sha256_bytes(a.tobytes()), "edited_sha256": sha256_bytes(b.tobytes())})
     man["changed_entries_total"] = sum(t["changed_entries"] for t in man["tensors"])
     write_json(out_dir / "wsp_edit_manifest.json", man)

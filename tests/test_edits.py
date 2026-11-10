@@ -52,11 +52,15 @@ def test_stacked_edit_equals_sequential_application(tmp_path, tiny_model):
         {"op": "dir_ablate", "tensor": T, "u": "p.npz#u", "alpha": 1.0}]}))
     (tmp_path / "c" / "c.json").write_text(json.dumps({"name": "c", "base": "b", "parent": "../p/p.json", "ops": [
         {"op": "scale_cols", "tensor": T, "cols": [0], "factor": 0.5}]}))
-    both = _spec(tmp_path, [{"op": "dir_ablate", "tensor": T, "u": [1.0, 1.0, 0, 0], "alpha": 1.0},
-                            {"op": "scale_cols", "tensor": T, "cols": [0], "factor": 0.5}])
     _, m_chain = build(tmp_path / "c" / "c.json", tmp_path / "m1", base_dir=tiny_model)
-    _, m_flat = build(both, tmp_path / "m2", base_dir=tiny_model)
-    assert m_chain["tensors"][0]["edited_sha256"] == m_flat["tensors"][0]["edited_sha256"]
+    parent_model, m_parent = build(tmp_path / "p" / "p.json", tmp_path / "mp", base_dir=tiny_model)
+    child_only = _spec(tmp_path, [{"op": "scale_cols", "tensor": T, "cols": [0], "factor": 0.5}])
+    _, m_seq = build(child_only, tmp_path / "m2", base_dir=parent_model)  # child ops on the exact parent weights
+    assert m_chain["tensors"][0]["edited_sha256"] == m_seq["tensors"][0]["edited_sha256"]
+    t = m_chain["tensors"][0]
+    assert m_chain["own_tensors"] == [T] and 0 < t["relative_change_vs_parent"] < t["relative_change"]
+    assert abs(t["relative_change_vs_parent"] - m_seq["tensors"][0]["relative_change"]) < 1e-6
+    assert m_parent["tensors"][0]["relative_change_vs_parent"] == m_parent["tensors"][0]["relative_change"]
     assert m_chain["chain"] == ["p", "c"] and len(load_chain(tmp_path / "c" / "c.json")) == 2
     assert spec_size(tmp_path / "c" / "c.json") == (1, 8)  # own ops only: one inline int list
     out = export(tmp_path / "c" / "c.json", tmp_path / "exp", "edit")  # self-contained copy builds identically

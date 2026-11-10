@@ -56,9 +56,36 @@ def test_package_includes_parent_chain(tmp_path, monkeypatch):
     assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == "parent/parent.json"
 
 
+def test_published_parent_is_copied_verbatim(tmp_path, monkeypatch):
+    pub = tmp_path / "published" / "edit"  # a published submission's edit/ directory
+    (pub / "derive").mkdir(parents=True)
+    np.savez(pub / "edit.npz", u15=np.ones(4, np.float32))
+    (pub / "edit.json").write_text(json.dumps({"name": "edit", "base": "b", "ops": [
+        {"op": "dir_ablate", "tensor": "t", "u": "edit.npz#u15"}]}))
+    (pub / "REPORT.md").write_text("r")
+    (pub / "derive" / "d.py").write_text("x = 1")
+    case = tmp_path / "cases" / "c"
+    (case / "edits").mkdir(parents=True)
+    from wsp.edits import copy_parent
+    copy_parent(pub / "edit.json", case / "parent")
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "parent": "../parent/edit.json",
+                                                       "ops": []}))
+    (case / "NOTES.md").write_text("n")
+    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    out, man = upload.package("c", "e")
+    sha = {f["path"]: f["sha256"] for f in man["files"]}
+    for p in pub.rglob("*"):
+        if p.is_file():
+            assert sha["edit/parent/" + p.relative_to(pub).as_posix()] == upload._sha(p)  # byte-identical
+    assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == "parent/edit.json"
+
+
 def test_protocol():
     pat = RULES["submission"]["path_pattern"]
     assert re.match(pat, "submissions/5" + "A" * 47 + "/my-entry/")
     assert not re.match(pat, "submissions/team/my-entry/")
+    assert set(RULES["submission"]["required"]) <= set(RULES["submission"]["files"])
+    assert set(RULES["upload"]["required"]) <= set(RULES["upload"]["files"])
     text = doc()
     assert all(t in text for t in RULES["edit"]["tracks"]) and RULES["upload"]["schema"] in text

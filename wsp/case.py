@@ -81,10 +81,10 @@ def cmd_init(a):
         raise SystemExit(f"{d} exists")
     c = {"profile": a.profile, "contrast": a.contrast, "frozen": None, "parent": None}
     if a.parent:  # stack on an existing edit: copy it (with its own parents) into the case
-        from .edits import export, load_chain  # noqa: PLC0415
+        from .edits import copy_parent, load_chain  # noqa: PLC0415
         if load_chain(a.parent)[-1][0]["base"] != a.profile:
             raise SystemExit("the parent edit is for another base")
-        c["parent"] = export(a.parent, d / "parent", "parent").relative_to(d).as_posix()
+        c["parent"] = copy_parent(a.parent, d / "parent").relative_to(d).as_posix()
     write_json(d / "case.json", c)
     include = read_json(a.include) if a.include else []
     dev = include + [r["id"] for r in data.balanced_sample(a.dev - len(include), a.seed, exclude=include)]
@@ -250,6 +250,9 @@ def cmd_report(a):
         if (d / "results").is_dir():
             (d / "RESULTS.md").write_text(case_tables(d.name))
     rep = REPO / "REPORT.md"
+    if not os.access(rep, os.W_OK):  # read-only checkout: only the case records are written
+        print(headline())
+        return
     txt = rep.read_text()
     block = f"<!-- headline:begin -->\n{headline()}\n<!-- headline:end -->"
     rep.write_text(re.sub(r"<!-- headline:begin -->.*<!-- headline:end -->", lambda _: block, txt, flags=re.S))
@@ -273,7 +276,8 @@ def main():
       (["--include"], {"help": "json id list forced into dev (e.g. screening problems already looked at)"}),
       (["--subset"], {"action": "append", "default": [], "help": "name=split:n, e.g. dev128=dev:128"}),
       (["--seed"], {"type": int, "default": 7}),
-      (["--parent"], {"help": "edit spec to build on (e.g. the current champion's): the case starts from that model"}),
+      (["--parent"], {"help": "edit to build on, e.g. a published submission's edit/edit.json (copied verbatim): "
+                                "the case starts from that model"}),
       help="create a case and its practice splits")
     p("run", case, (["model"], {"help": "base or an edit name"}), (["set"], {"help": "case set or bench:<name>"}),
       (["--n"], {"type": int, "default": 1}), (["--force"], {"action": "store_true"}),
