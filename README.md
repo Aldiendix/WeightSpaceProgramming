@@ -51,7 +51,8 @@ with use.
   (`tools/.config`) are never committed.
 
 ## Submitting
-1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below), and bind it to a paid ticket with the subnet's miner CLI.
+1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below), and bind it to a paid
+   ticket with the subnet's miner CLI.
 2. Keep improving the PR until it runs: the queue is ordered by your last push (comments do not count), and a PR
    that conflicts with `master` waits outside the queue until you update it.
 3. When the run starts, the PR is locked: the subnet tags the commit as `mms/<sid>` and only that commit is used;

@@ -2,6 +2,7 @@
 
 Graders (item["task"]):  math    last \\boxed{} of the final answer, exact match or math-verify equivalence
                          choice  option letter from \\boxed{} or "answer is (X)"
+                         exact   \\boxed{} answer equal to the target after normalization (case, brackets, final period)
                          ifeval  official IFEval checkers (lm-eval), strict prompt level
 The final answer is the text after </think> in thinking mode; an answer whose thinking never closed has none.
 Failure kinds: correct | finished_wrong | finished_no_answer | cut_loop (hit the token limit in a loop) | cut_other.
@@ -86,7 +87,16 @@ def _ifeval(item, answer):
     return res["inst_level_strict_acc"], bool(res["prompt_level_strict_acc"])
 
 
-GRADERS = {"math": _math, "choice": _choice, "ifeval": _ifeval}
+def _exact(item, answer):
+    pred = last_boxed(answer)
+
+    def norm(x):
+        x = re.sub(r"\\text\{([^}]*)\}", r"\1", x).strip().strip(".").lower()
+        return re.sub(r"^\((.*)\)$", r"\1", x).strip()
+    return pred, pred is not None and norm(pred) == norm(item["answer"])
+
+
+GRADERS = {"math": _math, "choice": _choice, "exact": _exact, "ifeval": _ifeval}
 
 
 def score(item, text, finish_reason, thinking):

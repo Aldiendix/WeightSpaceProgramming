@@ -1,5 +1,6 @@
 """Problem sets. Every item: {id, source, task, problem, answer, ...}; `task` selects the prompt and the grader
-(see grade.py): "math" (\\boxed answer), "choice" (option letter), "ifeval" (official instruction checkers).
+(see grade.py): "math" (\\boxed answer), "choice" (option letter), "exact" (normalized string), "ifeval" (official
+instruction checkers).
 
 practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits): GSM8K and MATH train,
                   shipped in data/practice/ (no test items)
@@ -21,6 +22,7 @@ PROMPTS = {
     "math": "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}.",
     "choice": "{problem}\n\nOptions:\n{options}\n\nAnswer with the letter of the correct option, within \\boxed{{}}.",
     "ifeval": "{problem}",
+    "exact": "{problem}\n\nThink step by step, then give the final answer within \\boxed{{}}.",
 }
 
 
@@ -44,6 +46,17 @@ def _qa(repo, split, prefix, q="question", a="answer"):
     return lambda: [{"id": f"{prefix}_{i}", "problem": r[q], "answer": str(r[a])} for i, r in enumerate(_hf(repo, split=split))]
 
 
+def _bbh(per_task=20, seed=0):  # BIG-Bench Hard: a fixed sample of every task, exact-match answers
+    from datasets import get_dataset_config_names  # noqa: PLC0415
+    rows, rng = [], random.Random(seed)
+    for task in sorted(set(get_dataset_config_names("lukaemon/bbh")) - {"dyck_languages"}):  # its answers are braces,
+        # which cannot be given inside \\boxed{}
+        d = _hf("lukaemon/bbh", task, split="test")
+        rows += [{"id": f"bbh_{task}_{i}", "problem": d[i]["input"], "answer": d[i]["target"], "subject": task}
+                 for i in sorted(rng.sample(range(len(d)), min(per_task, len(d))))]
+    return rows
+
+
 def _mmlupro(n=500, seed=0):
     d = _hf("TIGER-Lab/MMLU-Pro", split="test")
     return [{"id": f"mmlupro_{d[i]['question_id']}", "problem": d[i]["question"], "answer": d[i]["answer"],
@@ -64,8 +77,10 @@ BENCHMARKS = {
     "gsm8k500": (_gsm8k, "math", 500),
     "amc23": (_qa("math-ai/amc23", "test", "amc23"), "math", None),
     "aime24": (_qa("HuggingFaceH4/aime_2024", "train", "aime24", q="problem"), "math", None),
+    "aime25": (_qa("MathArena/aime_2025", "train", "aime25", q="problem"), "math", None),
     "mmlupro500": (_mmlupro, "choice", None),
     "ifeval": (_ifeval, "ifeval", None),
+    "bbh": (_bbh, "exact", None),
 }
 
 
