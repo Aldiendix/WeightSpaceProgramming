@@ -19,7 +19,7 @@ wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   upload.py     deliverables -> R2 by the upload protocol   rules.py  loads rules.json, renders "Protocol" below
 .claude/skills/weight-edit/SKILL.md   the agent's workflow        playbook.md   lessons + evidence
 rules.json      the competition protocol                      data/practice/  GSM8K / MATH train with answers
-cases/          worked cases (records protocol: wsp/case.py)  examples/       a submission template
+cases/          worked cases (records protocol: wsp/case.py)
 tests/          CPU unit tests                                submissions/    entries (champions merged)
 tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tools/.config, not committed)
 ```
@@ -51,8 +51,7 @@ with use.
   (`tools/.config`) are never committed.
 
 ## Submitting
-1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below; template:
-   `examples/submission-loop/`), and bind it to a paid ticket with the subnet's miner CLI.
+1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below), and bind it to a paid ticket with the subnet's miner CLI.
 2. Keep improving the PR until it runs: the queue is ordered by your last push (comments do not count), and a PR
    that conflicts with `master` waits outside the queue until you update it.
 3. When the run starts, the PR is locked: the subnet tags the commit as `mms/<sid>` and only that commit is used;
