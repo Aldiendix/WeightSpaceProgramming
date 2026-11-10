@@ -1,3 +1,4 @@
+tools/.config
 .work/
 __pycache__/
 *.pyc

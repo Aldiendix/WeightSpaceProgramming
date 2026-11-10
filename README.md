@@ -21,6 +21,7 @@ wsp/            toolkit (python -m wsp.<module> -h for each CLI)
 rules.json      the competition protocol                      data/practice/  GSM8K / MATH train with answers
 cases/          worked cases (records protocol: wsp/case.py)  examples/       a submission template
 tests/          CPU unit tests                                submissions/    entries (champions merged)
+tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tools/.config, not committed)
 ```
 
 ## Install and environment
@@ -45,7 +46,9 @@ with use.
 - **Generated views**: the README protocol section and the playbook evidence table; nothing generated is edited
   by hand, and other views (`cases/*/RESULTS.md`) are not kept.
 - **Data**: only the frozen practice sets; benchmarks are fetched and cached in scratch.
-- **Submissions**: only champions' directories are merged. Machine-specific tooling stays outside the repository.
+- **Submissions**: only champions' directories are merged.
+- **Tooling** that is generic and configuration-driven lives in `tools/`; credentials and machine settings
+  (`tools/.config`) are never committed.
 
 ## Submitting
 1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below; template:
