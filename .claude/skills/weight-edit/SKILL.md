@@ -24,7 +24,8 @@ You are the editor: you decide what to change from measurements of what parts of
    must dominate and `acc when finished` be far above `acc`; read failing answers yourself. Without that, editing
    is unlikely to help: say so instead of forcing an edit.
 2. **Init**: `init <case> --profile P --include cases/screening/sets/screen64.json --subset dev128=dev:128
-   --subset holdout256=holdout:256`, then `run <case> base dev`.
+   --subset holdout256=holdout:256`, then `run <case> base dev`. When there is a current champion (or any edit to
+   improve on), add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it.
 3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`. The
    contrast kind is `case.json` -> `contrast` (`wsp/directions.py` `CONTRASTS`; add a generator for a new failure).
 4. **Extract**: `extract <case>` -> per-layer stability, separation, writer totals. Take layers where the direction

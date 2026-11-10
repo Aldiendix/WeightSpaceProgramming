@@ -41,3 +41,34 @@ def test_build_is_bit_exact_and_npz_refs(tmp_path, tiny_model):
     _, m2 = build(spec, tmp_path / "m2", base_dir=tiny_model)
     assert [t["edited_sha256"] for t in m1["tensors"]] == [t["edited_sha256"] for t in m2["tensors"]]
     assert m1["changed_entries_total"] > 0
+
+
+def test_stacked_edit_equals_sequential_application(tmp_path, tiny_model):
+    from wsp.edits import export, load_chain, spec_size
+    (tmp_path / "p").mkdir()
+    (tmp_path / "c").mkdir()
+    np.savez(tmp_path / "p" / "p.npz", u=np.array([1.0, 1.0, 0, 0], np.float32))
+    (tmp_path / "p" / "p.json").write_text(json.dumps({"name": "p", "base": "b", "ops": [
+        {"op": "dir_ablate", "tensor": T, "u": "p.npz#u", "alpha": 1.0}]}))
+    (tmp_path / "c" / "c.json").write_text(json.dumps({"name": "c", "base": "b", "parent": "../p/p.json", "ops": [
+        {"op": "scale_cols", "tensor": T, "cols": [0], "factor": 0.5}]}))
+    both = _spec(tmp_path, [{"op": "dir_ablate", "tensor": T, "u": [1.0, 1.0, 0, 0], "alpha": 1.0},
+                            {"op": "scale_cols", "tensor": T, "cols": [0], "factor": 0.5}])
+    _, m_chain = build(tmp_path / "c" / "c.json", tmp_path / "m1", base_dir=tiny_model)
+    _, m_flat = build(both, tmp_path / "m2", base_dir=tiny_model)
+    assert m_chain["tensors"][0]["edited_sha256"] == m_flat["tensors"][0]["edited_sha256"]
+    assert m_chain["chain"] == ["p", "c"] and len(load_chain(tmp_path / "c" / "c.json")) == 2
+    assert spec_size(tmp_path / "c" / "c.json") == (1, 8)  # own ops only: one inline int list
+    out = export(tmp_path / "c" / "c.json", tmp_path / "exp", "edit")  # self-contained copy builds identically
+    _, m_exp = build(out, tmp_path / "m3", base_dir=tiny_model)
+    assert m_exp["tensors"][0]["edited_sha256"] == m_chain["tensors"][0]["edited_sha256"]
+    assert (tmp_path / "exp" / "parent" / "p.json").exists()
+
+
+def test_chain_rejects_mixed_bases(tmp_path):
+    import pytest
+    from wsp.edits import load_chain
+    (tmp_path / "p.json").write_text(json.dumps({"name": "p", "base": "a", "ops": []}))
+    (tmp_path / "c.json").write_text(json.dumps({"name": "c", "base": "b", "parent": "p.json", "ops": []}))
+    with pytest.raises(ValueError):
+        load_chain(tmp_path / "c.json")

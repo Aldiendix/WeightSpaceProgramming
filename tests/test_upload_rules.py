@@ -41,6 +41,21 @@ def test_package_and_upload(tmp_path, monkeypatch):
     assert json.loads(s3.objects["staging/sid/manifest.json"])["schema"] == RULES["upload"]["schema"]
 
 
+def test_package_includes_parent_chain(tmp_path, monkeypatch):
+    case = tmp_path / "cases" / "c"
+    (case / "edits").mkdir(parents=True)
+    (case / "parent").mkdir()
+    (case / "parent" / "parent.json").write_text(json.dumps({"name": "parent", "base": "b", "ops": []}))
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "parent": "../parent/parent.json",
+                                                       "ops": []}))
+    (case / "NOTES.md").write_text("n")
+    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    out, man = upload.package("c", "e")
+    assert "edit/parent/parent.json" in {f["path"] for f in man["files"]}
+    assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == "parent/parent.json"
+
+
 def test_protocol():
     pat = RULES["submission"]["path_pattern"]
     assert re.match(pat, "submissions/5" + "A" * 47 + "/my-entry/")

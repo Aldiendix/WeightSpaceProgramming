@@ -43,6 +43,9 @@ practice sets -> `pairs` / `extract` the failure direction -> `edit` + `selectiv
 `freeze` -> confirm on HOLDOUT (and benchmarks where available) -> `report`. Edits are specs, so they are small,
 exact and re-appliable (`wsp.edits`); the model is always built from the pinned base.
 
+Edits stack: `init <case> --parent <spec>` starts a case from an existing edit (e.g. the current champion's), and
+the case's edits record it as their `parent`, so improvements accumulate instead of starting over from the base.
+
 When the task is finished, upload the deliverables: `python -m wsp.upload <case> <edit> [--derive DIR]
 [--task task.json]` (target and temporary key from the subnet's task.json, or R2_* in `.config`).
 

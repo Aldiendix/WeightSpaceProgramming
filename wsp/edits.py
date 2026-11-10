@@ -1,7 +1,8 @@
 """Weight edits as declarative, reproducible specs.
 
-A spec (JSON: {name, base, ops, meta}; base = a profile name, see profiles.py) lists operations on named tensors of
-the base model. `build` applies them in
+A spec (JSON: {name, base, ops, meta, parent?}; base = a profile name, see profiles.py) lists operations on named
+tensors of the base model. "parent" (a path relative to the spec) stacks it on another spec, e.g. the current
+champion's edit: the parent chain is applied first, then the spec's own ops. `build` applies them in
 float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
 exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit.
 
@@ -62,6 +63,47 @@ def _mask(sel, like):
     return m
 
 
+def load_chain(spec_path):
+    """[(spec, its directory)] from the root parent down to this spec; all on the same base."""
+    chain, seen, p = [], set(), Path(spec_path).resolve()
+    while p is not None:
+        if p in seen:
+            raise ValueError(f"parent cycle at {p}")
+        seen.add(p)
+        spec = json.load(open(p))
+        chain.append((spec, p.parent))
+        p = (p.parent / spec["parent"]).resolve() if spec.get("parent") else None
+    chain.reverse()
+    if len({s["base"] for s, _ in chain}) > 1:
+        raise ValueError("a spec and its parents must share one base")
+    return chain
+
+
+def export(spec_path, dst, name):
+    """Copy a spec self-contained into dst as <name>.json (+ <name>.npz holding all its arrays); its parent chain goes
+    to dst/parent/ recursively. Returns the new spec path."""
+    src, dst = Path(spec_path), Path(dst)
+    spec, arrays = json.load(open(src)), {}
+    for op in spec["ops"]:
+        for k in ("u", "cols", "rows"):
+            ref = op.get(k)
+            if isinstance(ref, str):
+                path, _, key = ref.partition("#")
+                new = key if key not in arrays else f"{Path(path).stem}_{key}"
+                arrays[new] = _resolve(ref, src.parent)
+                op[k] = f"{name}.npz#{new}"
+    if spec.get("parent"):
+        par_src = src.parent / spec["parent"]
+        par = export(par_src, dst / "parent", json.load(open(par_src)).get("name") or par_src.stem)
+        spec["parent"] = os.path.relpath(par, dst)
+    spec["name"] = name
+    dst.mkdir(parents=True, exist_ok=True)
+    if arrays:
+        np.savez(dst / f"{name}.npz", **arrays)
+    write_json(dst / f"{name}.json", spec)
+    return dst / f"{name}.json"
+
+
 def apply_ops(tensors, ops, base_dir):
     """tensors: name -> float32 torch tensor, modified in place."""
     import torch  # noqa: PLC0415
@@ -92,17 +134,19 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     from safetensors import safe_open  # noqa: PLC0415
     from safetensors.torch import load_file, save_file  # noqa: PLC0415
 
-    spec_path, out_dir = Path(spec_path), Path(out_dir)
-    spec = json.load(open(spec_path))
+    out_dir = Path(out_dir)
+    chain = load_chain(spec_path)
+    spec = chain[-1][0]
     base = Path(base_dir) if base_dir else profiles.base_dir(spec["base"])
     index = tensor_index(base)
-    names = sorted({op["tensor"] for op in spec["ops"]})
+    names = sorted({op["tensor"] for s, _ in chain for op in s["ops"]})
     orig = {}
     for n in names:
         with safe_open(str(base / index[n]), "pt") as f:
             orig[n] = f.get_tensor(n)
     work = {n: t.to(torch.float32).clone() for n, t in orig.items()}
-    apply_ops(work, spec["ops"], spec_path.parent)
+    for s, d in chain:  # parents first
+        apply_ops(work, s["ops"], d)
     edited = {n: work[n].to(orig[n].dtype).contiguous() for n in names}
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -121,7 +165,7 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     def bits(x):
         return (x.view(torch.int16) if x.dtype == torch.bfloat16 else x).numpy()
 
-    man, diff = {"spec": spec, "base_dir": str(base), "tensors": []}, {}
+    man, diff = {"spec": spec, "chain": [s.get("name") for s, _ in chain], "base_dir": str(base), "tensors": []}, {}
     for i, n in enumerate(names):
         a, b = bits(orig[n]), bits(edited[n])
         changed = np.flatnonzero(a.reshape(-1) != b.reshape(-1))
@@ -141,9 +185,10 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     return out_dir, man
 
 
-def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random_control=False, seed=0):
+def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random_control=False, seed=0, parent=None):
     """Spec ablating each layer's direction from its MLP down_proj, restricted to the top-k writer neurons.
-    random_control: a random unit direction orthogonal to u instead (same layers, columns and alpha)."""
+    random_control: a random unit direction orthogonal to u instead (same layers, columns and alpha).
+    parent: path of the spec this one stacks on, relative to out_dir."""
     d = np.load(directions)
     prefix = decoder_prefix(tensor_index(profiles.base_dir(base)))
     rng, arrays, ops = np.random.default_rng(seed), {}, []
@@ -164,12 +209,15 @@ def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random
     np.savez(out_dir / f"{name}.npz", **arrays)
     spec = {"name": name, "base": base, "ops": ops, "meta": {"directions": Path(directions).name, "layers": list(layers),
                                                              "topk": topk, "alpha": alpha, "random_control": random_control}}
+    if parent:
+        spec["parent"] = parent
     write_json(out_dir / f"{name}.json", spec)
     return out_dir / f"{name}.json"
 
 
 def spec_size(spec_path):
-    """(edited tensors, payload bytes = every distinct array the spec carries; inline lists as float32 / int64)."""
+    """(edited tensors, payload bytes) of the spec's own ops, without its parents. Payload = every distinct array the
+    spec carries (npz arrays as stored, inline lists as float32 / int64)."""
     spec_path = Path(spec_path)
     spec, seen, payload = json.load(open(spec_path)), set(), 0
     for op in spec["ops"]:

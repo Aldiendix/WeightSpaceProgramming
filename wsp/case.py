@@ -1,7 +1,8 @@
 """Case workflow CLI: python -m wsp.case <command> ...   (see .claude/skills/weight-edit/SKILL.md for the protocol)
 
 A case = one model profile + one behavior to remove. Layout (all small files, kept in git):
-  cases/<case>/case.json                 {"profile", "contrast", "frozen"}
+  cases/<case>/case.json                 {"profile", "contrast", "frozen", "parent"}
+  cases/<case>/parent/                   (stacked cases) the edit this case builds on, e.g. the current champion's
   cases/<case>/sets/<set>.json           practice problem ids (dev, holdout and their subsets)
   cases/<case>/pairs*.json, directions.npz
   cases/<case>/edits/<edit>.json|.npz    edit spec;  edits/<edit>/ manifest.json + diff.npz (exact, re-appliable)
@@ -12,6 +13,7 @@ Big files on the GPU box: $WSP_WORK/runs/<case>/<model>__<set>.jsonl, $WSP_WORK/
 """
 import argparse
 import json
+import os
 import re
 
 from . import data, profiles
@@ -41,13 +43,16 @@ def run_path(case, model, tag):
 
 
 def model_path(case, model):
-    """The pinned base model dir, or a built model dir for an edit (built on first use)."""
-    if model == BASE:
+    """The case's starting model (the pinned base, or the parent edit built on it for a stacked case), or the built
+    model of one of its edits (built on first use)."""
+    parent = conf(case).get("parent")
+    if model == BASE and not parent:
         return str(profiles.base_dir(conf(case)["profile"]))
+    spec = cdir(case) / parent if model == BASE else cdir(case) / "edits" / f"{model}.json"
     path = MODELS / f"{case}__{model}"
     if not (path / "wsp_edit_manifest.json").exists():
         from .edits import build  # noqa: PLC0415
-        build(cdir(case) / "edits" / f"{model}.json", path, cdir(case) / "edits" / model)
+        build(spec, path, None if model == BASE else cdir(case) / "edits" / model)
     return str(path)
 
 
@@ -74,7 +79,13 @@ def cmd_init(a):
     d = cdir(a.case)
     if (d / "case.json").exists():
         raise SystemExit(f"{d} exists")
-    write_json(d / "case.json", {"profile": a.profile, "contrast": a.contrast, "frozen": None})
+    c = {"profile": a.profile, "contrast": a.contrast, "frozen": None, "parent": None}
+    if a.parent:  # stack on an existing edit: copy it (with its own parents) into the case
+        from .edits import export, load_chain  # noqa: PLC0415
+        if load_chain(a.parent)[-1][0]["base"] != a.profile:
+            raise SystemExit("the parent edit is for another base")
+        c["parent"] = export(a.parent, d / "parent", "parent").relative_to(d).as_posix()
+    write_json(d / "case.json", c)
     include = read_json(a.include) if a.include else []
     dev = include + [r["id"] for r in data.balanced_sample(a.dev - len(include), a.seed, exclude=include)]
     sets = {"dev": dev, "holdout": [r["id"] for r in data.balanced_sample(a.holdout, a.seed + 1, exclude=dev)]}
@@ -144,8 +155,10 @@ def cmd_edit(a):
         f"L{'-'.join(map(str, a.layers))}_k{a.topk}_a{a.alpha:g}"
     from .edits import spec_size  # noqa: PLC0415
 
-    spec = dir_ablate_spec(cdir(a.case) / "directions.npz", conf(a.case)["profile"], a.layers, a.topk, a.alpha,
-                           cdir(a.case) / "edits", name, a.random_control)
+    c = conf(a.case)
+    parent = os.path.relpath(cdir(a.case) / c["parent"], cdir(a.case) / "edits") if c.get("parent") else None
+    spec = dir_ablate_spec(cdir(a.case) / "directions.npz", c["profile"], a.layers, a.topk, a.alpha,
+                           cdir(a.case) / "edits", name, a.random_control, parent=parent)
     tensors, payload = spec_size(spec)
     print(f"{spec}: {tensors} tensors, payload {payload} bytes")
 
@@ -259,7 +272,9 @@ def main():
       (["--dev"], {"type": int, "default": 256}), (["--holdout"], {"type": int, "default": 512}),
       (["--include"], {"help": "json id list forced into dev (e.g. screening problems already looked at)"}),
       (["--subset"], {"action": "append", "default": [], "help": "name=split:n, e.g. dev128=dev:128"}),
-      (["--seed"], {"type": int, "default": 7}), help="create a case and its practice splits")
+      (["--seed"], {"type": int, "default": 7}),
+      (["--parent"], {"help": "edit spec to build on (e.g. the current champion's): the case starts from that model"}),
+      help="create a case and its practice splits")
     p("run", case, (["model"], {"help": "base or an edit name"}), (["set"], {"help": "case set or bench:<name>"}),
       (["--n"], {"type": int, "default": 1}), (["--force"], {"action": "store_true"}),
       help="generate + grade, write results (paired with base when possible)")

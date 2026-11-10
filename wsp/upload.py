@@ -2,7 +2,8 @@
 
 python -m wsp.upload <case> <edit> [--report FILE] [--derive DIR] [--task task.json] [--dry-run]
 
-1. package: cases/<case>/edits/<edit>.json -> edit/edit.json (its arrays merged into edit/edit.npz), the report ->
+1. package: cases/<case>/edits/<edit>.json -> edit/edit.json (its arrays merged into edit/edit.npz; a stacked edit's
+   parent chain under edit/parent/), the report ->
    edit/REPORT.md (default: the case's NOTES.md + RESULTS.md), --derive DIR -> edit/derive/...; under
    $WSP_WORK/deliver/<case>__<edit>/
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from . import config
 from .common import CASES, WORK, read_json, write_json
+from .edits import export
 from .rules import RULES
 
 
@@ -25,25 +27,9 @@ def _sha(p):
 
 
 def package(case, edit, report=None, derive=None):
-    import numpy as np  # noqa: PLC0415
-
-    src = CASES / case / "edits"
     out = WORK / "deliver" / f"{case}__{edit}"
     shutil.rmtree(out, ignore_errors=True)
-    (out / "edit").mkdir(parents=True)
-    spec, arrays = read_json(src / f"{edit}.json"), {}
-    for op in spec["ops"]:
-        for k in ("u", "cols", "rows"):
-            ref = op.get(k)
-            if isinstance(ref, str):
-                path, _, key = ref.partition("#")
-                name = key if key not in arrays else f"{Path(path).stem}_{key}"
-                arrays[name] = np.load(src / path)[key]
-                op[k] = f"edit.npz#{name}"
-    spec["name"] = "edit"
-    write_json(out / "edit" / "edit.json", spec)
-    if arrays:
-        np.savez(out / "edit" / "edit.npz", **arrays)
+    export(CASES / case / "edits" / f"{edit}.json", out / "edit", "edit")  # self-contained, parents under edit/parent/
     parts = [Path(report)] if report else [p for p in (CASES / case / "NOTES.md", CASES / case / "RESULTS.md") if p.exists()]
     if not parts:
         raise SystemExit("no report: pass --report or write the case's NOTES.md")
