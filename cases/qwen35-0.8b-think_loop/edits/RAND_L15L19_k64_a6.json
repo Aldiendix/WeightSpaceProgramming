@@ -1,6 +1,6 @@
 {
  "name": "RAND_L15L19_k64_a6",
- "base": "Qwen/Qwen3.5-0.8B",
+ "base": "qwen35-0.8b-think",
  "ops": [
   {
    "op": "dir_ablate",

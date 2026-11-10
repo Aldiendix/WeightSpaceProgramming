@@ -1,0 +1,49 @@
+import json
+import re
+
+import numpy as np
+
+from wsp import upload
+from wsp.rules import RULES, doc
+
+
+class FakeS3:
+    def __init__(self):
+        self.objects = {}
+
+    def upload_file(self, path, bucket, key):
+        self.objects[key] = open(path, "rb").read()
+
+    def get_object(self, Bucket, Key):  # noqa: N803
+        import io
+        return {"Body": io.BytesIO(self.objects[Key])}
+
+    def head_object(self, Bucket, Key):  # noqa: N803
+        return {"ContentLength": len(self.objects[Key])}
+
+
+def test_package_and_upload(tmp_path, monkeypatch):
+    case = tmp_path / "cases" / "c"
+    (case / "edits").mkdir(parents=True)
+    np.savez(case / "edits" / "e.npz", u15=np.ones(4, np.float32), cols15=np.arange(3))
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "ops": [
+        {"op": "dir_ablate", "tensor": "t", "u": "e.npz#u15", "cols": "e.npz#cols15", "alpha": 6}]}))
+    (case / "NOTES.md").write_text("notes")
+    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    out, man = upload.package("c", "e")
+    assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/edit.npz", "edit/REPORT.md"}
+    spec = json.loads((out / "edit" / "edit.json").read_text())
+    assert spec["ops"][0]["u"] == "edit.npz#u15"
+    s3 = FakeS3()
+    keys = upload.upload(out, man, "e", "bucket", "staging/sid/", (None, None, None), client=s3)
+    assert keys[-1] == "staging/sid/manifest.json" and list(s3.objects)[-1] == keys[-1]  # manifest last
+    assert json.loads(s3.objects["staging/sid/manifest.json"])["schema"] == RULES["upload"]["schema"]
+
+
+def test_protocol():
+    pat = RULES["submission"]["path_pattern"]
+    assert re.match(pat, "submissions/5" + "A" * 47 + "/my-entry/")
+    assert not re.match(pat, "submissions/team/my-entry/")
+    text = doc()
+    assert all(t in text for t in RULES["edit"]["tracks"]) and RULES["upload"]["schema"] in text

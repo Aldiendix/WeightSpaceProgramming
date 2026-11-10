@@ -1,0 +1,23 @@
+[project]
+name = "wsp"
+version = "0.1.0"
+description = "Weight-space programming: improve LLMs on benchmarks by editing their weights directly"
+requires-python = ">=3.10"
+dependencies = ["numpy", "torch", "transformers", "safetensors", "huggingface_hub", "datasets"]
+
+[project.optional-dependencies]
+gen = ["vllm"]                                                         # generation (wsp.gen, wsp.case run)
+grade = ["math-verify", "lm-eval", "langdetect", "immutabledict", "nltk"]  # math / IFEval graders
+upload = ["boto3"]                                                     # wsp.upload
+fast = ["flash-linear-attention"]                                      # fast probes for linear-attention models
+test = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["wsp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

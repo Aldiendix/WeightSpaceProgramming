@@ -1,8 +1,8 @@
 """Paths and small helpers shared by every module.
 
-Paths come from the environment (set by `./gpu run` on the GPU box; other settings: wsp/config.py, .config):
-  WSP_WORK  disposable work dir for big files (models, generations, activations, data cache); default <repo>/.work
-Everything worth keeping lives in the repo under cases/.
+Paths come from the environment:
+  WSP_WORK   disposable work dir for big files (built models, generations, data cache); default <repo>/.work
+  WSP_CASES  where case records are kept; default <repo>/cases (point it elsewhere when the checkout is read-only)
 """
 import gzip
 import hashlib
@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CASES = REPO / "cases"
+CASES = Path(os.environ.get("WSP_CASES", REPO / "cases"))
 WORK = Path(os.environ.get("WSP_WORK", REPO / ".work"))
 DATA, RUNS, MODELS = WORK / "data", WORK / "runs", WORK / "models"
 

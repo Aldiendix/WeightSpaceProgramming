@@ -1,6 +1,7 @@
 """Weight edits as declarative, reproducible specs.
 
-A spec (JSON: {name, base, ops, meta}) lists operations on named tensors of a base model. `build` applies them in
+A spec (JSON: {name, base, ops, meta}; base = a profile name, see profiles.py) lists operations on named tensors of
+the base model. `build` applies them in
 float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
 exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit.
 
@@ -8,7 +9,8 @@ Operations ("u", "cols", "rows" are inline lists or "file.npz#key" relative to t
   dir_ablate  side "out" (W writes into the residual stream, e.g. down_proj): W -= alpha * u (u^T W)[:, cols]
               side "in"  (W reads from it, e.g. up_proj):                      W -= alpha * (W u)[rows] u^T
   scale_cols  W[:, cols] *= factor        scale_rows  W[rows, :] *= factor
-Which tensors may change and how much: rules.json (enforced here for tensors and ops, budgets via `wsp.rules check`).
+The manifest also records what limit checks need (changed entries, relative change, base norm per tensor); the
+limits themselves are in rules.json and are checked by the subnet project, not here.
 """
 import json
 import os
@@ -17,16 +19,10 @@ from pathlib import Path
 
 import numpy as np
 
+from . import profiles
 from .common import sha256_bytes, write_json
-from .rules import RULES, tensor_violation
 
-
-def snapshot(repo):
-    if os.path.isdir(repo):
-        return Path(repo)
-    from huggingface_hub import snapshot_download  # noqa: PLC0415
-    return Path(snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.txt", "*.jinja", "*.model",
-                                                         "tokenizer*", "*.py"]))
+AUXILIARY_STACKS = r"mtp|visual|vision"  # layer stacks that are not the main decoder (MTP heads, vision towers)
 
 
 def tensor_index(model_dir):
@@ -44,7 +40,7 @@ def decoder_prefix(names):
     count = {}
     for n in names:
         m = re.match(r"(.*)layers\.(\d+)\.", n)
-        if m and not re.search(RULES["editable_tensors"]["auxiliary_stack_pattern"], m.group(1)):
+        if m and not re.search(AUXILIARY_STACKS, m.group(1)):
             count[m.group(1)] = max(count.get(m.group(1), 0), int(m.group(2)) + 1)
     return max(count, key=count.get)
 
@@ -84,33 +80,27 @@ def apply_ops(tensors, ops, base_dir):
         elif op["op"] in ("scale_cols", "scale_rows"):
             dim = 1 if op["op"] == "scale_cols" else 0
             sel = torch.as_tensor(_resolve(op["cols" if dim else "rows"], base_dir), dtype=torch.long)
-            if len(sel) >= W.shape[dim]:
-                raise ValueError("refused: whole-tensor rescaling")
             W.index_copy_(dim, sel, W.index_select(dim, sel) * float(op["factor"]))
         else:
             raise ValueError(f"unknown op {op['op']}")
 
 
-def build(spec_path, out_dir, diff_dir=None):
-    """Apply a spec to its base model -> (model_dir, manifest)."""
+def build(spec_path, out_dir, diff_dir=None, base_dir=None):
+    """Apply a spec to its base model -> (model_dir, manifest). base_dir: an already verified local copy of the base
+    (default: profiles.base_dir(spec["base"]))."""
     import torch  # noqa: PLC0415
     from safetensors import safe_open  # noqa: PLC0415
     from safetensors.torch import load_file, save_file  # noqa: PLC0415
 
     spec_path, out_dir = Path(spec_path), Path(out_dir)
     spec = json.load(open(spec_path))
-    base = snapshot(spec["base"])
+    base = Path(base_dir) if base_dir else profiles.base_dir(spec["base"])
     index = tensor_index(base)
-    prefix = decoder_prefix(index)
     names = sorted({op["tensor"] for op in spec["ops"]})
-    bad = [op["op"] for op in spec["ops"] if op["op"] not in RULES["ops"]["allowed"]]
     orig = {}
     for n in names:
         with safe_open(str(base / index[n]), "pt") as f:
             orig[n] = f.get_tensor(n)
-    bad += [f"{n}: {w}" for n in names if (w := tensor_violation(n, prefix, orig[n].dim()))]
-    if bad:
-        raise ValueError(f"refused by rules.json: {bad}")
     work = {n: t.to(torch.float32).clone() for n, t in orig.items()}
     apply_ops(work, spec["ops"], spec_path.parent)
     edited = {n: work[n].to(orig[n].dtype).contiguous() for n in names}
@@ -155,7 +145,7 @@ def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random
     """Spec ablating each layer's direction from its MLP down_proj, restricted to the top-k writer neurons.
     random_control: a random unit direction orthogonal to u instead (same layers, columns and alpha)."""
     d = np.load(directions)
-    prefix = decoder_prefix(tensor_index(snapshot(base)))
+    prefix = decoder_prefix(tensor_index(profiles.base_dir(base)))
     rng, arrays, ops = np.random.default_rng(seed), {}, []
     for l in layers:
         u = d["U"][l].astype(np.float32)
@@ -176,3 +166,18 @@ def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random
                                                              "topk": topk, "alpha": alpha, "random_control": random_control}}
     write_json(out_dir / f"{name}.json", spec)
     return out_dir / f"{name}.json"
+
+
+def spec_size(spec_path):
+    """(edited tensors, payload bytes = every distinct array the spec carries; inline lists as float32 / int64)."""
+    spec_path = Path(spec_path)
+    spec, seen, payload = json.load(open(spec_path)), set(), 0
+    for op in spec["ops"]:
+        for k in ("u", "cols", "rows"):
+            v = op.get(k)
+            if v is None or json.dumps(v) in seen:
+                continue
+            seen.add(json.dumps(v))
+            a = _resolve(v, spec_path.parent)
+            payload += a.nbytes if isinstance(v, str) else a.size * (4 if a.dtype.kind == "f" else 8)
+    return len({op["tensor"] for op in spec["ops"]}), payload

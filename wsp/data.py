@@ -1,19 +1,20 @@
 """Problem sets. Every item: {id, source, task, problem, answer, ...}; `task` selects the prompt and the grader
 (see grade.py): "math" (\\boxed answer), "choice" (option letter), "ifeval" (official instruction checkers).
 
-practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits): GSM8K and MATH train
+practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits): GSM8K and MATH train,
+                  shipped in data/practice/ (no test items)
 bench:<name>      benchmark test sets, only for frozen evaluations (see BENCHMARKS)
 private:<name>    organizer-only sets from $WSP_PRIVATE_DIR (never in the repo)
 """
+import hashlib
+import json
 import os
 import random
-import urllib.request
 from pathlib import Path
 
-from .common import DATA, read_jsonl, write_jsonl
+from .common import DATA, REPO, read_jsonl, write_jsonl
 
-# The post's practice files (GSM8K train / MATH train with answers, no test items).
-PRACTICE_URL = "https://raw.githubusercontent.com/RikiyaT/lm_understand-logs/HEAD/exp8_math/practice/{}.jsonl"
+PRACTICE_DIR = REPO / "data" / "practice"  # GSM8K / MATH train with answers (from the post's released logs)
 PRACTICE = ("gsm8k_train", "math_train")
 
 PROMPTS = {
@@ -82,11 +83,7 @@ def _bench(name):
 
 
 def _practice(name):
-    path = DATA / f"{name}.jsonl"
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(PRACTICE_URL.format(name), path)
-    rows = read_jsonl(path)
+    rows = read_jsonl(PRACTICE_DIR / f"{name}.jsonl.gz")
     for r in rows:
         r.setdefault("task", "math")
     return rows
@@ -128,3 +125,11 @@ def balanced_sample(n, seed, exclude=()):
 
 def user_message(item):
     return PROMPTS[item.get("task", "math")].format(**{**item, "problem": item["problem"].rstrip()})
+
+
+def manifest(spec):
+    """Freezable identity of a problem set: per item id + sha256 of its canonical JSON, and the sha256 of the list."""
+    items = [{"id": r["id"], "sha256": hashlib.sha256(json.dumps(r, sort_keys=True, ensure_ascii=False).encode()).hexdigest()}
+             for r in load(spec)]
+    return {"set": spec, "n": len(items), "items": items,
+            "sha256": hashlib.sha256(json.dumps(items, sort_keys=True).encode()).hexdigest()}

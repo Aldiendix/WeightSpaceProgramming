@@ -1,6 +1,6 @@
 {
  "name": "L14-21x5_k64_a4",
- "base": "Qwen/Qwen3.5-2B",
+ "base": "qwen35-2b-think",
  "ops": [
   {
    "op": "dir_ablate",

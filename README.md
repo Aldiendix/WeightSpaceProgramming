@@ -1,75 +1,79 @@
-# model_modify — editing LLM weights directly
+# WeightSpaceProgramming — improving LLMs by editing their weights directly
 
-Improve small LLMs on benchmarks by editing their weights directly, in the spirit of
-*Sparks of Weight-Space Programming* (Takehi, Teoh, Zhang, Khattab, 2026,
-https://rikiyat.github.io/blog/weight-space-programming/). The editor is an LLM agent following the `weight-edit`
-skill (`.claude/skills/weight-edit/SKILL.md`: protocol and steps); `playbook.md` holds lessons across cases,
-`REPORT.md` the results so far.
+Improve small LLMs on benchmarks by editing their weights directly, in the spirit of *Sparks of Weight-Space
+Programming* (Takehi, Teoh, Zhang, Khattab, 2026, https://rikiyat.github.io/blog/weight-space-programming/): find
+what blocks the model (e.g. reasoning loops), localize the components that cause it, and change a few weights.
+The editor is usually an LLM agent following the `weight-edit` skill (`.claude/skills/weight-edit/SKILL.md`);
+`playbook.md` holds lessons across cases and `REPORT.md` the results so far.
+
+This repository is also the target of the competition's submissions: miners add a method directory under
+`submissions/`, an agent turns it into an edit and uploads it, and the subnet project checks, evaluates and ranks
+it (format: "Protocol" below).
 
 ## Layout
 ```
-wsp/            toolkit
-  case.py       case workflow CLI: init, run, pairs, extract, selectivity, edit, freeze, screen, report
-  profiles.py   models with their model-card sampling      data.py    practice sets and benchmark registry
-  gen.py        vLLM generation (paired seeds) + grading   grade.py   graders by task, failure kinds
-  probe.py      teacher-forced activation / log-prob reads directions.py  contrast pairs, directions, writers
-  edits.py      declarative edit specs -> model dir + exact diff + sha256 manifest
-  stats.py      run summaries and paired comparisons           rules.py   checks against rules.json
-rules.json      limits for edits and submissions (single source of truth; summarized under "Limits" below)
-submissions/    ranked entries, one directory each (template: submissions/example/)
-cases/<case>/   one model + one behavior: case.json, sets/, pairs, directions, edits/, results/, NOTES.md, RESULTS.md
-gpu             push / pull / run / queue on the GPU box     scripts/queue.sh   the job queue on the box
-config.example  settings template (ssh, remote paths, R2)    wsp/config.py, wsp/storage.py   settings, R2 uploads
+wsp/            toolkit (python -m wsp.<module> -h for each CLI)
+  case.py       case workflow: screen, init, run, pairs, extract, selectivity, edit, freeze, report
+  profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
+  data.py       practice sets (data/practice/) and the benchmark registry   grade.py  graders, failure kinds
+  gen.py        vLLM generation with per-problem seeds (paired runs)         stats.py  summaries, paired comparisons
+  probe.py      teacher-forced activation / log-prob reads   directions.py  contrast pairs, directions, writer neurons
+  edits.py      declarative edit specs -> model dir + exact diff + manifest
+  upload.py     deliverables -> R2 by the upload protocol    rules.py  loads rules.json, renders "Protocol" below
+rules.json      the competition protocol: submission format, edit limits, upload layout
+cases/<case>/   worked cases (one base model + one behavior): sets, pairs, directions, edits, results, NOTES, RESULTS
+examples/       a submission template (examples/submission-loop/)
+submissions/    miners' entries
+data/practice/  GSM8K / MATH train problems with answers (selection and probing only, never test items)
+tests/          CPU unit tests (pytest)
+gpu, scripts/   optional helper for working on a remote GPU box (push / pull / run / job queue), settings in .config
 ```
-Small files that matter are in git; big files (models, generations, activations) stay in `$WSP_WORK` on the GPU
-box, which is disposable.
 
-## Setup
-1. GPU box: a Python env with `vllm transformers safetensors huggingface_hub datasets math-verify lm-eval
-   langdetect immutabledict nltk flash-linear-attention boto3`.
-2. Locally: copy `config.example` to `.config` (never committed): ssh access to the GPU box, remote paths, and the
-   R2 bucket to which finished tasks are uploaded (`<R2_PREFIX>/<case>/runs|results/...`; `wsp/storage.py`;
-   uploads are off while `R2_BUCKET` is empty).
-3. `./gpu push && ./gpu worker`; then queue jobs, e.g.
-   `./gpu queue base_dev 'python -m wsp.case run <case> base dev'`; `./gpu status`; `./gpu pull`.
+## Install and environment
+`pip install -e ".[gen,grade,upload]"` (plus `fast` for linear-attention models, `test` for the tests). Nothing
+else is assumed about the machine. Environment variables:
+- `WSP_MODELS_DIR`: pre-downloaded base models as `<org>__<name>@<revision>/`; otherwise the pinned revision is
+  fetched from the HF hub on first use.
+- `WSP_WORK` (default `.work/`): built models, generations, benchmark cache. `WSP_CASES` (default `cases/`): case
+  records, e.g. outside a read-only checkout.
 
-`python -m wsp.case <command> -h` documents every command.
+## Workflow
+Follow the skill; in short (`python -m wsp.case`): `screen` candidate models -> `init` a case -> `run` the base on
+practice sets -> `pairs` / `extract` the failure direction -> `edit` + `selectivity` + paired `run`s on DEV ->
+`freeze` -> confirm on HOLDOUT (and benchmarks where available) -> `report`. Edits are specs, so they are small,
+exact and re-appliable (`wsp.edits`); the model is always built from the pinned base.
 
-## Submitting an edit (pull requests)
-Entries are ranked by an official run of each PR. A submission is an **edit spec, never weights**: the organizer
-builds it on the hash-checked official base model, so nothing made elsewhere can enter except through the spec's
-small arrays, whose size is capped.
+When the task is finished, upload the deliverables: `python -m wsp.upload <case> <edit> [--derive DIR]
+[--task task.json]` (target and temporary key from the subnet's task.json, or R2_* in `.config`).
 
-1. Develop with the toolkit (a case under `cases/` is the reference workflow), on practice problems only.
-2. Add one directory `submissions/<team>/<entry>/` (template: `submissions/example/qwen35-0.8b-loop/`):
-   - `entry.json`: team, entry, track, profile, edit file, target benchmarks, practice data used, forward passes used;
-   - `edit.json` + `edit.npz`: the spec (whitelisted ops on editable tensors);
-   - `METHOD.md`: the failure you found, how the spec was derived, controls, what did not work;
-   - `derive/`: code that re-derives the spec from the base model and practice data through the wsp API.
-3. Self-check before opening the PR: `python -m wsp.rules check submissions/<team>/<entry>/ --build` (`--build`
-   needs the base weights; it also checks the magnitude limits). The organizer runs the same check.
-4. The PR must not touch anything outside its directory; changes to the toolkit, prompts, grading, benchmarks or
-   rules go in separate core PRs, which are not ranked.
-5. Official run: base vs edit, paired, on public, private and guardrail sets; top entries are re-derived offline
-   and compared with `python -m wsp.rules compare`.
+## Protocol
+<!-- protocol:begin -->
+Protocol v2 (`rules.json`; generated by `python -m wsp.rules doc`). Protocol of the weight-editing competition: what a submission PR contains, what an edit may change, and how a finished task's deliverables are uploaded. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.
 
-## Limits
-<!-- rules:begin -->
-Rules v1 (`rules.json`; this section is generated by `python -m wsp.rules doc`).
+**Submission (PR).** A PR adds exactly one directory and touches nothing else. It holds the method for the agent, not weights: the agent derives the edit from it on the base model and uploads the result (see upload). Directory `submissions/<hotkey_ss58>/<entry>/`:
+  - `entry.json`: required: {"schema": "mms.entry/1", "base": <profile name in wsp/profiles.py>, "track": <track>}
+  - `METHOD.md`: required: the method for the agent: the failure to remove, the steps, what to expect
+  - `derive/`: optional: method code (Python) the agent runs, using the wsp toolkit
+  - `data/`: optional: small auxiliary data
+  - file types .json, .jsonl, .npz, .py, .md, .txt, .csv; at most 2048 KiB in total.
 
-- **Editable**: Only 2-D weight matrices inside the main decoder layers (the layer stack with the most layers, not auxiliary stacks such as MTP heads or vision towers). Never embeddings, output head, norms, biases or other 1-D / 3-D parameters.
-- **Ops**: `dir_ablate`, `scale_cols`, `scale_rows`. Edits are declarative: whitelisted ops that are deterministic functions of the official base weights and the spec's arrays. New ops enter only through a reviewed core PR.
-- **Payload**: Information budget = bytes of every array in the spec (npz arrays as stored, inline lists as float32 / int64). This is the main guard against importing outside weights: a dense weight delta, even sparse or low-rank, is megabytes or more.
+**Edit.** The deliverable is an edit spec (wsp/edits.py): whitelisted ops that are deterministic functions of the pinned base weights and the spec's arrays; its base must equal entry.json's base. Weights are never submitted; the subnet builds the model from the spec.
+- editable tensors: 2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other 1-D / 3-D parameters
+- ops: `dir_ablate`, `scale_cols`, `scale_rows`
+- payload: bytes of every distinct array the spec carries (npz arrays as stored, inline lists as float32 / int64): the information budget, the main guard against importing outside weights
+- relative change: per tensor ||W' - W|| / ||W||; global: sqrt(sum ||W' - W||^2) / norm of all editable matrices of the base
 
 | limit | lite | open |
 |---|---|---|
 | edited tensors | 8 | no limit |
-| payload (spec arrays) | 256 KiB | 4096 KiB |
+| payload | 256 KiB | 4096 KiB |
 | relative change per tensor | 25% | 50% |
-| relative change of all editable matrices | 5% | 20% |
+| global relative change | 5% | 20% |
 
-- **Derivation**: derive/ code re-derives the spec from the official base model and practice data only, loading models and data exclusively through the wsp API (wsp.probe, wsp.gen, wsp.data practice sets). For top-ranked entries the organizer re-runs it offline; generation is not bit-deterministic, so the re-derived spec must match within tolerance (reproduction) and score within tolerance. Reproduction tolerance: direction cosine >= 0.99, selected-index overlap >= 90%, score within 2 SE. Practice data: `practice:gsm8k_train`, `practice:math_train`; at most 50 forward passes (one generation of up to 512 answers or one teacher-forced read of up to 1024 texts); no network, subprocesses or benchmark access (code scan: `rules.json` -> `derivation.banned_code_patterns`).
-- **Protected**: Evaluation-defining files: prompts, chat mode, sampling, grading, benchmarks, seeds, statistics, ops and these rules. A ranked PR must not change them; changes go through separate core PRs. Paths: `rules.json`, `wsp/`, `scripts/`, `gpu`, `cases/`, `.claude/`.
-- **Submission**: A PR adds exactly one directory submissions/<team>/<entry>/ and touches nothing else. Required: `entry.json`, `METHOD.md`; file types .json, .npz, .py, .md; at most 2048 KiB; `entry.json` fields: `team`, `entry`, `track`, `profile`, `edit`, `targets`, `practice_data`, `forward_passes`.
-- **Evaluation**: Official runs: the organizer builds the spec on the hash-checked base, then runs base and edit paired (same problems and per-problem seeds) with the profile's model-card sampling. 4 samples per problem. Public sets `bench:math500`, `bench:gsm8k500`, `bench:amc23`; private sets: private:<name>, loaded from $WSP_PRIVATE_DIR on the organizer's machine only. Guardrails `bench:mmlupro500`, `bench:ifeval`: an entry is disqualified if it drops by more than 2 SE. Ranking: private-set accuracy of the edited model; ties broken by the lower confidence bound gain - 2*SE. At most 2 submissions per team per week.
-<!-- rules:end -->
+**Upload (mms.upload/1).** When the task is finished, the deliverables go to the task's R2 prefix: files first, manifest last. Several uploads are allowed; the last complete manifest before the deadline counts (complete = every listed file present with matching sha256). Implemented by python -m wsp.upload.
+  - `edit/edit.json`: required: the edit spec
+  - `edit/edit.npz`: the spec's arrays (required when the spec references them)
+  - `edit/REPORT.md`: required: what was found, what was changed and why, controls, what did not work
+  - `edit/derive/**`: optional: the code that produced the spec
+- manifest.json = {"schema": "mms.upload/1", "files": [{"path", "size", "sha256"}]}, paths relative to the prefix, uploaded last
+<!-- protocol:end -->

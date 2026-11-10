@@ -18,7 +18,7 @@ def generate(model, items, profile, n=1, out=None, salt="s0", gpu_mem=0.90, max_
     from vllm import LLM, SamplingParams  # noqa: PLC0415
 
     samp = dict(profile["sampling"], **({"max_tokens": max_tokens} if max_tokens else {}))
-    # an edited model dir symlinks the base files, so it has its own tokenizer; a bare HF id works too
+    # an edited model dir symlinks the base files, so it has the base's tokenizer and chat template
     kw = dict(model=str(model), dtype="bfloat16", max_model_len=samp["max_tokens"] + CONTEXT_MARGIN,
               gpu_memory_utilization=gpu_mem, enable_prefix_caching=True, seed=0)
     if _is_multimodal(model):
@@ -55,7 +55,7 @@ def main():
 
     ap = argparse.ArgumentParser(description="generate and grade answers for a problem set")
     ap.add_argument("--profile", required=True)
-    ap.add_argument("--model", help="model dir or HF id (default: the profile's model)")
+    ap.add_argument("--model", help="model dir (default: the profile's pinned base model)")
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--ids", help="json list of practice problem ids")
     src.add_argument("--set", help="problem set spec, e.g. bench:math500")
@@ -68,7 +68,7 @@ def main():
     a = ap.parse_args()
     prof = profiles.get(a.profile)
     items = [data.by_id()[i] for i in read_json(a.ids)] if a.ids else data.load(a.set)
-    generate(a.model or prof["hf"], items[:a.limit], prof, n=a.n, out=a.out, salt=a.salt, gpu_mem=a.gpu_mem,
+    generate(a.model or profiles.base_dir(a.profile), items[:a.limit], prof, n=a.n, out=a.out, salt=a.salt, gpu_mem=a.gpu_mem,
              max_tokens=a.max_tokens)
 
 

@@ -15,10 +15,11 @@ WSP_REMOTE_WORK=/workspace/wsp_work  # disposable big files: models, runs, data 
 WSP_REMOTE_VENV=/workspace/venv
 WSP_REMOTE_HF_HOME=/workspace/hf
 
-# Cloudflare R2 (S3-compatible): outputs of finished tasks go to s3://$R2_BUCKET/$R2_PREFIX/<case>/...
-# Leave R2_BUCKET empty to disable uploads.
+# R2 target of `python -m wsp.upload` when no task.json is given (S3-compatible; the subnet's task.json carries
+# its own temporary key). Deliverables go to s3://$R2_BUCKET/$R2_PREFIX/ (layout: rules.json -> upload).
 R2_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
+R2_SESSION_TOKEN=                 # only for temporary credentials
 R2_BUCKET=
-R2_PREFIX=tmp/wsp
+R2_PREFIX=
