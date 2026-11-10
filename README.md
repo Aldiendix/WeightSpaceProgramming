@@ -53,14 +53,17 @@ with use.
   (`tools/.config`) are never committed.
 
 ## Submitting
-1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below), and bind it to a paid
-   ticket with the subnet's miner CLI.
-2. Keep improving the PR until it runs: the queue is ordered by your last push (comments do not count), and a PR
-   that conflicts with `master` waits outside the queue until you update it.
-3. When the run starts, the PR is locked: the subnet tags the commit as `axonry/<sid>` and only that commit is used;
-   later pushes count only for a new ticket on the same PR.
-4. The agent derives the edit from your method, uploads it, and the subnet evaluates it against the champion. A new
-   champion's directory is merged into `master`; other PRs get the result as a comment and stay open.
+The process is run by the subnet project (axonry), which has the details; in short:
+1. **Commit before you push.** Every version of `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below) is
+   first committed on chain: the first version together with the ticket (`axonry-miner submit`), later versions
+   with a remark only (`axonry-miner commit`; the ticket stays valid). A version's priority is the block position
+   of its commitment, and review, runs and decisions follow that order. Uncommitted content is set aside.
+2. **Open or update a PR** that only adds that directory; a ticket matches PRs for its own hotkey directory only.
+3. **Review**: authorized reviewers review entries in priority order with a GitHub review bound to the commit;
+   requested changes set the ticket aside until a new commitment and a new review.
+4. **Run**: the reviewed commit is locked as tag `axonry/<sid>`; the agent derives the edit from your method and
+   uploads it, and the subnet evaluates it against the champion. A new champion's directory is merged into
+   `master`; other PRs get the result as a comment and stay open.
 
 ## Protocol
 <!-- protocol:begin -->
