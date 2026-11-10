@@ -1,5 +1,4 @@
 {
- "version": 4,
  "about": "Protocol of the weight-editing competition: what a submission PR contains, what an edit may change, and how a finished task's deliverables are uploaded. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.",
  "submission": {
   "about": "A PR adds exactly one directory and touches nothing else. It holds the method for the agent, not weights: the agent derives the edit from it, on the base model or on an inherited edit, and uploads the result (see upload).",
