@@ -1,14 +1,17 @@
 #!/bin/bash
-# Run the toolkit on a remote GPU box. Settings in tools/.config (not committed; template: tools/.config.example).
+# Run the toolkit on a remote GPU box. Settings in $WSP_CONFIG (default tools/.config; any tools/.config* file is
+# not committed; template: tools/.config.example), so several boxes can be driven side by side.
 # Code and kept records live in the repo; the box keeps only scratch.
 #   tools/gpu push                 sync the repo to the box (+ tools/.config and the queue script into the work dir)
 #   tools/gpu pull                     fetch the case records produced on the box
 #   tools/gpu run '<cmd>'              run a command there, in the repo with the env activated
+#   tools/gpu sh '<cmd>'               run a plain shell command there (e.g. to set up a new box)
 #   tools/gpu queue [--first] <name> '<cmd>'   append a job (or put it before the pending ones)
 #   tools/gpu status | worker          queue state | start the queue worker if it is not running
 set -e
 cd "$(dirname "$0")/.."
-set -a; . tools/.config; set +a
+CFG=${WSP_CONFIG:-tools/.config}
+set -a; . "$CFG"; set +a
 SSHCFG=$(mktemp); trap 'rm -f "$SSHCFG"' EXIT
 { echo "Host wsp-gpu"
   echo "  HostName $WSP_SSH_HOST"; echo "  Port ${WSP_SSH_PORT:-22}"; echo "  User ${WSP_SSH_USER:-root}"
@@ -21,14 +24,16 @@ SSH="ssh -F $SSHCFG wsp-gpu"
 ENV="cd $WSP_REMOTE_REPO && . $WSP_REMOTE_VENV/bin/activate && set -a && . $WSP_REMOTE_WORK/.config && set +a && export WSP_WORK=$WSP_REMOTE_WORK HF_HOME=$WSP_REMOTE_HF_HOME PYTHONUNBUFFERED=1 VLLM_LOGGING_LEVEL=WARNING"
 cmd=$1; shift || true
 case "$cmd" in
-  push) rsync -az -e "ssh -F $SSHCFG" --exclude .git --exclude __pycache__ --exclude .work --exclude tools/.config \
+  push) rsync -az -e "ssh -F $SSHCFG" --exclude .git --exclude __pycache__ --exclude .work --exclude "tools/.config*" \
           ./ "wsp-gpu:$WSP_REMOTE_REPO/"
-        rsync -a --chmod=F600 -e "ssh -F $SSHCFG" tools/.config tools/queue.sh "wsp-gpu:$WSP_REMOTE_WORK/" ;;
+        rsync -a --chmod=F600 -e "ssh -F $SSHCFG" "$CFG" "wsp-gpu:$WSP_REMOTE_WORK/.config"
+        rsync -a -e "ssh -F $SSHCFG" tools/queue.sh "wsp-gpu:$WSP_REMOTE_WORK/" ;;
   pull) # the kept case records produced on the box (protocol: wsp/case.py); hand-written notes stay local
         rsync -az -e "ssh -F $SSHCFG" --include '*/' --include 'case.json' --include 'sets/*.json' \
           --include 'results/*.json' --include 'edits/*.json' --include 'edits/*.npz' --include 'parent/**' \
           --exclude '*' "wsp-gpu:$WSP_REMOTE_REPO/cases/" ./cases/ ;;
   run) $SSH "$ENV && $1" ;;
+  sh) $SSH "$1" ;;
   queue) first=""; [ "$1" = --first ] && { first=1; shift; }
          $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh add $1 $(printf '%q' "$2") $first" ;;
   status) $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh status" ;;

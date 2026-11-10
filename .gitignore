@@ -1,4 +1,5 @@
-tools/.config
+tools/.config*
+!tools/.config.example
 .work/
 __pycache__/
 *.pyc

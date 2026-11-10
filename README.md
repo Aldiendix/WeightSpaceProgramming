@@ -26,7 +26,8 @@ tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tool
 ```
 
 ## Install and environment
-`pip install -e ".[gen,grade,upload]"` (plus `fast` for linear-attention models, `test` for the tests).
+`pip install -e ".[gen,grade,upload]"` (plus `fast` for linear-attention models, `test` for the tests); install
+`vllm` first if a resolver picks an old version when solving all extras at once.
 - `WSP_MODELS_DIR`: pre-downloaded base models as `<org>__<name>@<revision>/`; otherwise the pinned revision is
   fetched from the HF hub on first use.
 - `WSP_WORK` (default `.work/`): scratch (built models, generations, pairs, benchmark cache). `WSP_CASES` (default
