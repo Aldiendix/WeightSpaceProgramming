@@ -88,4 +88,4 @@ def test_protocol():
     assert set(RULES["submission"]["required"]) <= set(RULES["submission"]["files"])
     assert set(RULES["upload"]["required"]) <= set(RULES["upload"]["files"])
     text = doc()
-    assert all(t in text for t in RULES["edit"]["tracks"]) and RULES["upload"]["schema"] in text
+    assert "payload" in text and RULES["upload"]["schema"] in text

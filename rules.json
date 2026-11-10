@@ -1,70 +1,39 @@
 {
- "about": "Protocol of the weight-editing competition: what a submission PR contains, what an edit may change, and how a finished task's deliverables are uploaded. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.",
+ "about": "Protocol of the weight-editing competition. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.",
  "submission": {
-  "about": "A PR adds exactly one directory and touches nothing else. It holds the method for the agent, not weights: the agent derives the edit from it, on the base model or on an inherited edit, and uploads the result (see upload).",
+  "about": "A PR adds exactly one directory and touches nothing else. It holds a method for the agent, never weights: the agent derives an edit from it, on the base model or on an inherited edit, and uploads it.",
   "path": "submissions/<hotkey_ss58>/<entry>/",
   "path_pattern": "^submissions/5[1-9A-HJ-NP-Za-km-z]{47}/[a-z0-9][a-z0-9_.-]{0,63}/",
   "files": {
-   "entry.json": "required: {\"schema\": \"mms.entry/1\", \"base\": <profile name in wsp/profiles.py>, \"track\": <track>, \"parent\": <sid of a published submission whose edit to inherit, or null for the base model>}",
-   "METHOD.md": "required: the method for the agent: the failure to remove, the steps, what to expect",
-   "derive/": "optional: method code (Python) the agent runs, using the wsp toolkit",
-   "data/": "optional: small auxiliary data"
+   "entry.json": "{\"schema\": \"mms.entry/1\", \"base\": <profile name in wsp/profiles.py>, \"parent\": <sid of a published submission whose edit to inherit, or null>}",
+   "METHOD.md": "the method for the agent: the failure to remove, the steps, what to expect",
+   "derive/": "method code (Python) the agent runs, using the wsp toolkit",
+   "data/": "small auxiliary data"
   },
-  "allowed_extensions": [
-   ".json",
-   ".jsonl",
-   ".npz",
-   ".py",
-   ".md",
-   ".txt",
-   ".csv"
-  ],
-  "required": [
-   "entry.json",
-   "METHOD.md"
-  ],
+  "required": ["entry.json", "METHOD.md"],
+  "allowed_extensions": [".json", ".jsonl", ".npz", ".py", ".md", ".txt", ".csv"],
   "max_total_bytes": 2097152
  },
  "edit": {
-  "about": "The deliverable is an edit spec (wsp/edits.py): whitelisted ops that are deterministic functions of the starting weights and the spec's arrays; its base must equal entry.json's base. Weights are never submitted; the subnet builds the model from the spec.",
-  "inheritance": "entry.json may name any published submission as parent; the spec then stacks on that edit (spec field parent, the inherited chain uploaded under edit/parent/ unchanged) and starts from exactly that model's weights. The limits below apply to the submission's own ops only, measured against the parent model; the accumulated change relative to the original base and the length of the chain are not limited.",
-  "editable_tensors": "2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other 1-D / 3-D parameters",
-  "ops": [
-   "dir_ablate",
-   "scale_cols",
-   "scale_rows"
-  ],
-  "payload": "bytes of every distinct array the spec's own ops carry (wsp.edits.spec_size; npz arrays as stored, inline lists as float32 / int64): the information budget, the main guard against importing outside weights",
-  "relative_change": "per tensor ||W' - W_parent|| / ||W_parent|| (manifest: relative_change_vs_parent; without a parent, the base); global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base",
-  "tracks": {
-   "lite": {
-    "max_tensors": 8,
-    "max_payload_bytes": 262144,
-    "max_relative_change_per_tensor": 0.25,
-    "max_global_relative_change": 0.05
-   },
-   "open": {
-    "max_tensors": null,
-    "max_payload_bytes": 4194304,
-    "max_relative_change_per_tensor": 0.5,
-    "max_global_relative_change": 0.2
-   }
-  }
+  "about": "An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.",
+  "inheritance": "With a parent, the spec stacks on that edit (spec field parent, the inherited chain uploaded unchanged under edit/parent/) and starts from exactly that model's weights. The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.",
+  "editable_tensors": "2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters",
+  "ops": ["dir_ablate", "scale_cols", "scale_rows"],
+  "payload": "bytes of every distinct array the own ops carry (wsp.edits.spec_size): the information budget, the main guard against importing outside weights",
+  "relative_change": "per tensor: manifest relative_change_vs_parent; global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base",
+  "limits": {"max_payload_bytes": 4194304, "max_relative_change_per_tensor": 0.5, "max_global_relative_change": 0.2}
  },
  "upload": {
-  "about": "When the task is finished, the deliverables go to the task's R2 prefix: files first, manifest last. Several uploads are allowed; the last complete manifest before the deadline counts (complete = every listed file present with matching sha256). Implemented by python -m wsp.upload.",
+  "about": "When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload). The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).",
   "schema": "mms.upload/1",
   "files": {
-   "edit/edit.json": "required: the edit spec",
-   "edit/REPORT.md": "required: what was found, what was changed and why, controls, what did not work",
-   "edit/edit.npz": "the spec's arrays (when the spec references them)",
-   "edit/parent/**": "the inherited edit chain, unchanged (when entry.json names a parent)",
-   "edit/derive/**": "optional: the code that produced the spec"
+   "edit/edit.json": "the edit spec",
+   "edit/REPORT.md": "what was found, what was changed and why, controls, what did not work",
+   "edit/edit.npz": "the spec's arrays, when it references them",
+   "edit/parent/**": "the inherited edit chain, unchanged, when entry.json names a parent",
+   "edit/derive/**": "the code that produced the spec"
   },
-  "required": [
-   "edit/edit.json",
-   "edit/REPORT.md"
-  ],
-  "manifest": "manifest.json = {\"schema\": \"mms.upload/1\", \"files\": [{\"path\", \"size\", \"sha256\"}]}, paths relative to the prefix and starting with edit/, uploaded last"
+  "required": ["edit/edit.json", "edit/REPORT.md"],
+  "manifest": "manifest.json = {\"schema\": \"mms.upload/1\", \"files\": [{\"path\", \"size\", \"sha256\"}]}, paths relative to the prefix and starting with edit/"
  }
 }
