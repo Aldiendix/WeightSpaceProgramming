@@ -26,7 +26,7 @@ def test_package_and_upload(tmp_path, monkeypatch):
     case = tmp_path / "cases" / "c"
     (case / "edits").mkdir(parents=True)
     np.savez(case / "edits" / "e.npz", u15=np.ones(4, np.float32), cols15=np.arange(3))
-    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "ops": [
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "meta": {"directions": "x.npz"}, "ops": [
         {"op": "dir_ablate", "tensor": "t", "u": "e.npz#u15", "cols": "e.npz#cols15", "alpha": 6}]}))
     (case / "NOTES.md").write_text("notes")
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
@@ -34,7 +34,7 @@ def test_package_and_upload(tmp_path, monkeypatch):
     out, man = upload.package("c", "e")
     assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/edit.npz", "edit/REPORT.md"}
     spec = json.loads((out / "edit" / "edit.json").read_text())
-    assert spec["ops"][0]["u"] == "edit.npz#u15"
+    assert spec["ops"][0]["u"] == "edit.npz#u15" and "meta" not in spec
     s3 = FakeS3()
     keys = upload.upload(out, man, "e", "bucket", "staging/sid/", (None, None, None), client=s3)
     assert keys[-1] == "staging/sid/manifest.json" and list(s3.objects)[-1] == keys[-1]  # manifest last

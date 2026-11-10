@@ -112,6 +112,7 @@ def export(spec_path, dst, name):
     if spec.get("parent"):
         spec["parent"] = os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst)
     spec["name"] = name
+    spec.pop("meta", None)  # local bookkeeping (derivable from the ops or pointing at files that are not exported)
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
         np.savez(dst / f"{name}.npz", **arrays)
