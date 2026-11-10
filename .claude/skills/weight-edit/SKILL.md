@@ -20,10 +20,24 @@ You are the editor: you decide what to change from measurements of what parts of
 - Generation uses the profile's model-card sampling; a gain that needs another decoding setting is not a gain.
 - Report everything, including losses and failed attempts.
 
+## Time budget (competition tasks have a hard deadline)
+- Plan before starting: the deadline is in the brief. Generation dominates the cost: every `run` starts vLLM (a few
+  minutes), and a 128-problem run of a model that loops to the token limit takes 15-30 min on one 24 GB GPU; probes
+  (`extract`, `selectivity`) take minutes. Count the runs you can afford and drop what does not fit.
+- Use the cheapest evidence first: `selectivity` screens edits in minutes; generate only for the most promising
+  ones, on `dev128`.
+- **Upload early, then improve**: as soon as one edit passes selectivity and gains on DEV, upload it
+  (`python -m wsp.upload`). Re-upload when a better edit is confirmed; the last complete upload counts, so an early
+  one is never wasted and a late one may never land.
+- Keep the last stretch (at least 30 min) for the final upload; skip HOLDOUT if it does not fit and say so in the
+  report.
+
 ## Steps
-1. **Screen**: `screen <profiles...>` (problem list in `cases/screening/sets/`), then `report`. A removable failure
-   must dominate and `acc when finished` be far above `acc`; read failing answers yourself. Without that, editing
-   is unlikely to help: say so instead of forcing an edit.
+1. **Screen**: in a competition the base (and parent, if any) is given: run it on the screening problems
+   (`init`, then `run <case> base dev`, and read `RESULTS.md`). Otherwise compare candidate models with
+   `screen <profiles...>` and `report`. A removable failure must dominate and `acc when finished` be far above
+   `acc`; read failing answers yourself. Without that, editing is unlikely to help: say so instead of forcing an
+   edit.
 2. **Init**: `init <case> --profile P --include cases/screening/sets/screen64.json --subset dev128=dev:128
    --subset holdout256=holdout:256`, then `run <case> base dev`. When there is a current champion (or any edit to
    improve on), add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it.
@@ -36,5 +50,5 @@ You are the editor: you decide what to change from measurements of what parts of
    the promising ones, with a dose series. Every `run` of an edit is paired with the base automatically.
 6. **Freeze** the best edit (`freeze <case> <edit>`), then `run <case> base holdout256` and `run <case> <edit>
    holdout256` (and `bench:<name>` sets if available).
-7. **Deliver**: `report`, update NOTES and `playbook.md`, then `python -m wsp.upload <case> <edit> [--derive DIR]
-   [--task task.json]` before the deadline (several uploads are fine; the last complete one counts).
+7. **Deliver**: `report`, update NOTES (and `playbook.md` outside competition tasks), then the final
+   `python -m wsp.upload <case> <edit> [--derive DIR] [--task task.json]` (see "Time budget").
