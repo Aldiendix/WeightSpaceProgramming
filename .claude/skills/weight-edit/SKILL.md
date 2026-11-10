@@ -51,4 +51,4 @@ You are the editor: you decide what to change from measurements of what parts of
 6. **Freeze** the best edit (`freeze <case> <edit>`), then `run <case> base holdout256` and `run <case> <edit>
    holdout256` (and `bench:<name>` sets if available).
 7. **Deliver**: `report`, update NOTES (and `playbook.md` outside competition tasks), then the final
-   `python -m wsp.upload <case> <edit> [--derive DIR] [--task task.json]` (see "Time budget").
+   `python -m wsp.upload <case> <edit> [--task task.json]` (see "Time budget").

@@ -96,9 +96,11 @@ def copy_parent(spec_path, dst):
     return export(spec_path, dst, json.load(open(spec_path)).get("name") or spec_path.stem)
 
 
-def export(spec_path, dst, name):
-    """Copy a spec self-contained into dst as <name>.json (+ <name>.npz holding its own arrays); its parent chain goes
-    to dst/parent/ (see copy_parent). Returns the new spec path."""
+def export(spec_path, dst, name, parents=True):
+    """Copy a spec into dst as <name>.json (+ <name>.npz holding its own arrays), without local bookkeeping.
+    parents=True: the parent chain goes to dst/parent/ (see copy_parent), self-contained.
+    parents=False (uploads): the parent is only referenced as parent/edit.json; it is already published, and the
+    subnet puts the published chain there before building. Returns the new spec path."""
     src, dst = Path(spec_path), Path(dst)
     spec, arrays = json.load(open(src)), {}
     for op in spec["ops"]:
@@ -110,13 +112,14 @@ def export(spec_path, dst, name):
                 arrays[new] = _resolve(ref, src.parent)
                 op[k] = f"{name}.npz#{new}"
     if spec.get("parent"):
-        spec["parent"] = os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst)
-    spec["name"] = name
-    spec.pop("meta", None)  # local bookkeeping (derivable from the ops or pointing at files that are not exported)
+        spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst) if parents
+                          else f"parent/{PUBLISHED}")
+    for k in ("name", "meta"):  # the file name / local notes (derivable, or pointing at files not exported)
+        spec.pop(k, None)
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
         np.savez(dst / f"{name}.npz", **arrays)
-    write_json(dst / f"{name}.json", spec)
+    write_json(dst / f"{name}.json", {k: spec[k] for k in ("base", "parent", "ops") if k in spec})
     return dst / f"{name}.json"
 
 

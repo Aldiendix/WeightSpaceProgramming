@@ -1,11 +1,10 @@
 """Upload a finished task's deliverables to R2 by the fixed protocol in rules.json -> upload (mms.upload/1).
 
-python -m wsp.upload <case> <edit> [--report FILE] [--derive DIR] [--task task.json] [--dry-run]
+python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run]
 
-1. package: cases/<case>/edits/<edit>.json -> edit/edit.json (its arrays merged into edit/edit.npz; a stacked edit's
-   parent chain under edit/parent/), the report ->
-   edit/REPORT.md (default: the case's NOTES.md + RESULTS.md), --derive DIR -> edit/derive/...; under
-   $WSP_WORK/deliver/<case>__<edit>/
+1. package under $WSP_WORK/deliver/<case>__<edit>/: cases/<case>/edits/<edit>.json -> edit/edit.json (base, parent,
+   ops; a parent is referenced as parent/edit.json, not uploaded: it is already published) with its arrays in
+   edit/edit.npz, and the report -> edit/REPORT.md (default: the case's NOTES.md + RESULTS.md);
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
 Credentials: --task (the subnet's task.json, section "r2": endpoint, bucket, prefix, access_key_id,
 secret_access_key, session_token) or R2_* in .config / the environment (see config.example).
@@ -26,16 +25,14 @@ def _sha(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def package(case, edit, report=None, derive=None):
+def package(case, edit, report=None):
     out = WORK / "deliver" / f"{case}__{edit}"
     shutil.rmtree(out, ignore_errors=True)
-    export(CASES / case / "edits" / f"{edit}.json", out / "edit", "edit")  # self-contained, parents under edit/parent/
+    export(CASES / case / "edits" / f"{edit}.json", out / "edit", "edit", parents=False)
     parts = [Path(report)] if report else [p for p in (CASES / case / "NOTES.md", CASES / case / "RESULTS.md") if p.exists()]
     if not parts:
         raise SystemExit("no report: pass --report or write the case's NOTES.md")
     (out / "edit" / "REPORT.md").write_text("\n\n".join(p.read_text() for p in parts))
-    if derive:
-        shutil.copytree(derive, out / "edit" / "derive", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != "manifest.json")
     manifest = {"schema": RULES["upload"]["schema"],
                 "files": [{"path": p.relative_to(out).as_posix(), "size": p.stat().st_size, "sha256": _sha(p)}
@@ -82,11 +79,10 @@ def main():
     ap.add_argument("case")
     ap.add_argument("edit")
     ap.add_argument("--report", help="report file (default: the case's NOTES.md + RESULTS.md)")
-    ap.add_argument("--derive", help="directory with the code that produced the edit")
     ap.add_argument("--task", help="the subnet's task.json (R2 target and temporary credentials)")
     ap.add_argument("--dry-run", action="store_true", help="package and print the manifest only")
     a = ap.parse_args()
-    out, manifest = package(a.case, a.edit, a.report, a.derive)
+    out, manifest = package(a.case, a.edit, a.report)
     print(json.dumps(manifest, indent=1))
     if not a.dry_run:
         print("\n".join(upload(out, manifest, *target(a.task))))

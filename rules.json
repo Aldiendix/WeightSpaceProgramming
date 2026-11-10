@@ -10,30 +10,50 @@
    "derive/": "method code (Python) the agent runs, using the wsp toolkit",
    "data/": "small auxiliary data"
   },
-  "required": ["entry.json", "METHOD.md"],
-  "allowed_extensions": [".json", ".jsonl", ".npz", ".py", ".md", ".txt", ".csv"],
+  "required": [
+   "entry.json",
+   "METHOD.md"
+  ],
+  "allowed_extensions": [
+   ".json",
+   ".jsonl",
+   ".npz",
+   ".py",
+   ".md",
+   ".txt",
+   ".csv"
+  ],
   "max_total_bytes": 2097152
  },
  "edit": {
   "about": "An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.",
-  "inheritance": "With a parent, the spec stacks on that edit (spec field parent, the inherited chain uploaded unchanged under edit/parent/) and starts from exactly that model's weights. The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.",
+  "inheritance": "With a parent, the spec says \"parent\": \"parent/edit.json\" and stacks on that edit, starting from exactly that model's weights; the parent is not uploaded (it is already published): to build, the subnet places the published chain there (each published edit/ directory under its child's parent/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.",
   "editable_tensors": "2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters",
-  "ops": ["dir_ablate", "scale_cols", "scale_rows"],
+  "ops": [
+   "dir_ablate",
+   "scale_cols",
+   "scale_rows"
+  ],
   "payload": "bytes of every distinct array the own ops carry (wsp.edits.spec_size): the information budget, the main guard against importing outside weights",
   "relative_change": "per tensor: manifest relative_change_vs_parent; global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base",
-  "limits": {"max_payload_bytes": 4194304, "max_relative_change_per_tensor": 0.5, "max_global_relative_change": 0.2}
+  "limits": {
+   "max_payload_bytes": 4194304,
+   "max_relative_change_per_tensor": 0.5,
+   "max_global_relative_change": 0.2
+  }
  },
  "upload": {
-  "about": "When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload). The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).",
+  "about": "When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload); nothing else is uploaded. The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).",
   "schema": "mms.upload/1",
   "files": {
-   "edit/edit.json": "the edit spec",
-   "edit/REPORT.md": "what was found, what was changed and why, controls, what did not work",
-   "edit/edit.npz": "the spec's arrays, when it references them",
-   "edit/parent/**": "the inherited edit chain, unchanged, when entry.json names a parent",
-   "edit/derive/**": "the code that produced the spec"
+   "edit/edit.json": "the edit spec: {\"base\", \"parent\" (only with a parent: \"parent/edit.json\"), \"ops\"}",
+   "edit/edit.npz": "the arrays the ops reference, when they reference any",
+   "edit/REPORT.md": "what was found, what was changed and why, controls, what did not work"
   },
-  "required": ["edit/edit.json", "edit/REPORT.md"],
+  "required": [
+   "edit/edit.json",
+   "edit/REPORT.md"
+  ],
   "manifest": "manifest.json = {\"schema\": \"mms.upload/1\", \"files\": [{\"path\", \"size\", \"sha256\"}]}, paths relative to the prefix and starting with edit/"
  }
 }

@@ -41,22 +41,22 @@ def test_package_and_upload(tmp_path, monkeypatch):
     assert json.loads(s3.objects["staging/sid/manifest.json"])["schema"] == RULES["upload"]["schema"]
 
 
-def test_package_includes_parent_chain(tmp_path, monkeypatch):
+def test_upload_references_parent_without_copying_it(tmp_path, monkeypatch):
     case = tmp_path / "cases" / "c"
     (case / "edits").mkdir(parents=True)
     (case / "parent").mkdir()
-    (case / "parent" / "parent.json").write_text(json.dumps({"name": "parent", "base": "b", "ops": []}))
-    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "parent": "../parent/parent.json",
+    (case / "parent" / "edit.json").write_text(json.dumps({"base": "b", "ops": []}))
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "parent": "../parent/edit.json",
                                                        "ops": []}))
     (case / "NOTES.md").write_text("n")
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
     monkeypatch.setattr(upload, "WORK", tmp_path / "work")
     out, man = upload.package("c", "e")
-    assert "edit/parent/parent.json" in {f["path"] for f in man["files"]}
-    assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == "parent/parent.json"
+    assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/REPORT.md"}  # nothing else
+    assert json.loads((out / "edit" / "edit.json").read_text()) == {"base": "b", "parent": "parent/edit.json", "ops": []}
 
 
-def test_published_parent_is_copied_verbatim(tmp_path, monkeypatch):
+def test_published_parent_is_copied_verbatim(tmp_path):
     pub = tmp_path / "published" / "edit"  # a published submission's edit/ directory
     (pub / "derive").mkdir(parents=True)
     np.savez(pub / "edit.npz", u15=np.ones(4, np.float32))
@@ -68,17 +68,9 @@ def test_published_parent_is_copied_verbatim(tmp_path, monkeypatch):
     (case / "edits").mkdir(parents=True)
     from wsp.edits import copy_parent
     copy_parent(pub / "edit.json", case / "parent")
-    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "parent": "../parent/edit.json",
-                                                       "ops": []}))
-    (case / "NOTES.md").write_text("n")
-    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
-    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
-    out, man = upload.package("c", "e")
-    sha = {f["path"]: f["sha256"] for f in man["files"]}
-    for p in pub.rglob("*"):
+    for p in pub.rglob("*"):  # a case starts from a byte-identical copy of the published edit
         if p.is_file():
-            assert sha["edit/parent/" + p.relative_to(pub).as_posix()] == upload._sha(p)  # byte-identical
-    assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == "parent/edit.json"
+            assert upload._sha(case / "parent" / p.relative_to(pub)) == upload._sha(p)
 
 
 def test_protocol():
