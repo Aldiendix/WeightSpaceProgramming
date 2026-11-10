@@ -7,7 +7,7 @@ the answers that do finish are almost always correct. Removing the loops should 
 1. Screen the base model on practice problems; confirm that most failures are loops (`kind = cut_loop`) and that
    finished answers are mostly correct. If not, stop and report: this method does not apply.
 2. Build loop contrast pairs from the model's own correct traces and extract the per-layer loop direction and the
-   MLP neurons writing it (`derive/derive.py` does steps 1-2 and writes a first spec).
+   MLP neurons writing it (`pairs`, `extract`).
 3. Pick the two layers with the largest writer totals, excluding the last layer; ablate the direction from the
    top-64 writer columns of their `mlp.down_proj`.
 4. Check selectivity on held-out pairs (loop log-prob down, normal log-prob nearly unchanged), compare alpha 3 / 6

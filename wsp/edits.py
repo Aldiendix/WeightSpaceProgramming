@@ -1,6 +1,6 @@
 """Weight edits as declarative, reproducible specs.
 
-A spec (JSON: {name, base, ops, meta, parent?}; base = a profile name, see profiles.py) lists operations on named
+A spec (JSON: {name, base, ops, parent?}; base = a profile name, see profiles.py) lists operations on named
 tensors of the base model. "parent" (a path relative to the spec) stacks it on another spec, e.g. the current
 champion's edit: the parent chain is applied first, then the spec's own ops. `build` applies them in
 float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
@@ -114,12 +114,10 @@ def export(spec_path, dst, name, parents=True):
     if spec.get("parent"):
         spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst) if parents
                           else f"parent/{PUBLISHED}")
-    for k in ("name", "meta"):  # the file name / local notes (derivable, or pointing at files not exported)
-        spec.pop(k, None)
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
         np.savez(dst / f"{name}.npz", **arrays)
-    write_json(dst / f"{name}.json", {k: spec[k] for k in ("base", "parent", "ops") if k in spec})
+    write_json(dst / f"{name}.json", {k: spec[k] for k in ("base", "parent", "ops") if k in spec})  # nothing else
     return dst / f"{name}.json"
 
 
@@ -233,8 +231,7 @@ def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savez(out_dir / f"{name}.npz", **arrays)
-    spec = {"name": name, "base": base, "ops": ops, "meta": {"directions": Path(directions).name, "layers": list(layers),
-                                                             "topk": topk, "alpha": alpha, "random_control": random_control}}
+    spec = {"name": name, "base": base, "ops": ops}
     if parent:
         spec["parent"] = parent
     write_json(out_dir / f"{name}.json", spec)

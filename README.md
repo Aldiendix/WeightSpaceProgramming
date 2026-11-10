@@ -3,40 +3,49 @@
 Improve small LLMs on benchmarks by editing their weights directly, in the spirit of *Sparks of Weight-Space
 Programming* (Takehi, Teoh, Zhang, Khattab, 2026, https://rikiyat.github.io/blog/weight-space-programming/): find
 what blocks the model (e.g. reasoning loops), localize the components that cause it, and change a few weights.
-The editor is usually an LLM agent following the `weight-edit` skill (`.claude/skills/weight-edit/SKILL.md`);
-`playbook.md` holds lessons across cases and `REPORT.md` the results so far. The repository is also where
-competition entries are submitted ("Submitting").
+The editor is usually an LLM agent following the `weight-edit` skill (`.claude/skills/weight-edit/SKILL.md`), which
+starts from `playbook.md` (what works, with the evidence). The repository is also where competition entries are
+submitted ("Submitting").
 
 ## Layout
 ```
 wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   case.py       case workflow: screen, init, run, pairs, extract, selectivity, edit, freeze, report
   profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
-  data.py       practice sets (data/practice/) and the benchmark registry   grade.py  graders, failure kinds
-  gen.py        vLLM generation with per-problem seeds (paired runs)         stats.py  summaries, paired comparisons
-  probe.py      teacher-forced activation / log-prob reads   directions.py  contrast pairs, directions, writer neurons
-  edits.py      declarative edit specs -> model dir + exact diff + manifest
-  upload.py     deliverables -> R2 by the upload protocol    rules.py  loads rules.json, renders "Protocol" below
-rules.json      the competition protocol: submission format, edit limits, upload layout
-cases/<case>/   worked cases (one base model + one behavior): sets, pairs, directions, edits, results, NOTES, RESULTS
-examples/       a submission template (examples/submission-loop/)
-submissions/    miners' entries
-data/practice/  GSM8K / MATH train problems with answers (selection and probing only, never test items)
-tests/          CPU unit tests (pytest)
-gpu, scripts/   optional helper for working on a remote GPU box (push / pull / run / job queue), settings in .config
+  data.py       practice sets and the benchmark registry   grade.py  graders, failure kinds
+  gen.py        vLLM generation with per-problem seeds      stats.py  summaries, paired comparisons
+  probe.py      teacher-forced activation / log-prob reads  directions.py  contrast pairs, directions, writers
+  edits.py      declarative edit specs -> model dir + manifest (stacking on a parent)
+  upload.py     deliverables -> R2 by the upload protocol   rules.py  loads rules.json, renders "Protocol" below
+.claude/skills/weight-edit/SKILL.md   the agent's workflow        playbook.md   lessons + evidence
+rules.json      the competition protocol                      data/practice/  GSM8K / MATH train with answers
+cases/          worked cases (records protocol: wsp/case.py)  examples/       a submission template
+tests/          CPU unit tests                                submissions/    entries (champions merged)
 ```
 
 ## Install and environment
-`pip install -e ".[gen,grade,upload]"` (plus `fast` for linear-attention models, `test` for the tests). Nothing
-else is assumed about the machine. Environment variables:
+`pip install -e ".[gen,grade,upload]"` (plus `fast` for linear-attention models, `test` for the tests).
 - `WSP_MODELS_DIR`: pre-downloaded base models as `<org>__<name>@<revision>/`; otherwise the pinned revision is
   fetched from the HF hub on first use.
-- `WSP_WORK` (default `.work/`): built models, generations, benchmark cache. `WSP_CASES` (default `cases/`): case
-  records, e.g. outside a read-only checkout.
+- `WSP_WORK` (default `.work/`): scratch (built models, generations, pairs, benchmark cache). `WSP_CASES` (default
+  `cases/`): case records, e.g. outside a read-only checkout.
 
 ## Workflow
 `python -m wsp.case`, step by step as in the skill. Edits stack: `init <case> --parent <edit.json>` starts from an
 existing edit and the case's edits inherit it. Deliver with `python -m wsp.upload <case> <edit> [--task task.json]`.
+
+## Repository protocol
+Everything here should raise what an editing agent can do; the rest stays out, so the repository does not grow
+with use.
+- **Code** lives only in `wsp/`, one module per concern; no scripts beside it. Tests cover what other parts rely on
+  (exact rebuilds, protocol, grading, statistics).
+- **Knowledge** goes into `playbook.md` (merged, not appended) and the skill. A **case** is added only when it
+  teaches something new (a base model, a failure type, a method) and keeps only its records (`wsp/case.py`):
+  config, splits, edit specs, result summaries, decisions. Runs, pairs, directions and built models are scratch.
+- **Generated views**: the README protocol section and the playbook evidence table; nothing generated is edited
+  by hand, and other views (`cases/*/RESULTS.md`) are not kept.
+- **Data**: only the frozen practice sets; benchmarks are fetched and cached in scratch.
+- **Submissions**: only champions' directories are merged. Machine-specific tooling stays outside the repository.
 
 ## Submitting
 1. Open a PR that only adds `submissions/<hotkey_ss58>/<entry>/` (format: "Protocol" below; template:

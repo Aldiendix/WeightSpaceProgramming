@@ -7,15 +7,15 @@ python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run
    edit/edit.npz, and the report -> edit/REPORT.md (default: the case's NOTES.md + RESULTS.md);
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
 Credentials: --task (the subnet's task.json, section "r2": endpoint, bucket, prefix, access_key_id,
-secret_access_key, session_token) or R2_* in .config / the environment (see config.example).
+secret_access_key, session_token) or R2_* environment variables.
 """
 import argparse
 import hashlib
+import os
 import json
 import shutil
 from pathlib import Path
 
-from . import config
 from .common import CASES, WORK, read_json, write_json
 from .edits import export
 from .rules import RULES
@@ -42,16 +42,16 @@ def package(case, edit, report=None):
 
 
 def target(task=None):
-    """(endpoint, bucket, prefix, credentials) from a task.json or from R2_* settings."""
+    """(endpoint, bucket, prefix, credentials) from the subnet's task.json, or from R2_* environment variables."""
     if task:
         r = read_json(task)["r2"]
-        creds = (r["access_key_id"], r["secret_access_key"], r.get("session_token"))
-        return r["endpoint"], r["bucket"], r["prefix"], creds
-    c = config.load()
-    if not c.get("R2_BUCKET"):
-        raise SystemExit("R2 is not configured: pass --task or set R2_* in .config")
-    return c["R2_ENDPOINT"], c["R2_BUCKET"], c.get("R2_PREFIX", ""), \
-        (c["R2_ACCESS_KEY_ID"], c["R2_SECRET_ACCESS_KEY"], c.get("R2_SESSION_TOKEN") or None)
+        return r["endpoint"], r["bucket"], r["prefix"], (r["access_key_id"], r["secret_access_key"], r.get("session_token"))
+    env = os.environ
+    if not env.get("R2_BUCKET"):
+        raise SystemExit("no R2 target: pass --task task.json or set R2_ENDPOINT, R2_BUCKET, R2_PREFIX, "
+                         "R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (and R2_SESSION_TOKEN for temporary keys)")
+    return env["R2_ENDPOINT"], env["R2_BUCKET"], env.get("R2_PREFIX", ""), \
+        (env["R2_ACCESS_KEY_ID"], env["R2_SECRET_ACCESS_KEY"], env.get("R2_SESSION_TOKEN") or None)
 
 
 def upload(out, manifest, endpoint, bucket, prefix, creds, client=None):

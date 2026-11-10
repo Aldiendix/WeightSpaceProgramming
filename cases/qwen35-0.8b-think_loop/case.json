@@ -1,5 +1,10 @@
 {
  "profile": "qwen35-0.8b-think",
  "contrast": "loop",
- "frozen": "L15L19_k64_a6"
+ "subsets": {
+  "dev128": "dev:128",
+  "holdout256": "holdout:256"
+ },
+ "frozen": "L15L19_k64_a6",
+ "parent": null
 }

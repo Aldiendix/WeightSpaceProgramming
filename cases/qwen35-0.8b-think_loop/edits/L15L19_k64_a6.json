@@ -18,15 +18,5 @@
    "side": "out",
    "cols": "L15L19_k64_a6.npz#cols19"
   }
- ],
- "meta": {
-  "layers": [
-   15,
-   19
-  ],
-  "topk": 64,
-  "alpha": 6.0,
-  "random_control": false,
-  "directions": "directions.npz"
- }
+ ]
 }

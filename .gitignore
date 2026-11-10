@@ -1,5 +1,5 @@
-.config
 .work/
 __pycache__/
 *.pyc
 *.safetensors
+cases/*/RESULTS.md

@@ -1,0 +1,21 @@
+{
+ "summary": {
+  "n": 541,
+  "acc": 0.19408502772643252,
+  "cut_share": 0.7523105360443623,
+  "finished": 134,
+  "acc_when_finished": 0.7761194029850746,
+  "mean_tokens": 25411.362292051756,
+  "median_correct_tokens": 2642,
+  "kinds": {
+   "cut_loop": 396,
+   "correct": 105,
+   "finished_wrong": 30,
+   "cut_other": 10
+  },
+  "by_source": {
+   "ifeval": 0.19408502772643252
+  }
+ },
+ "paired": null
+}

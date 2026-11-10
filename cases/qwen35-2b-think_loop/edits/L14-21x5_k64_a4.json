@@ -42,18 +42,5 @@
    "side": "out",
    "cols": "L14-21x5_k64_a4.npz#cols21"
   }
- ],
- "meta": {
-  "layers": [
-   14,
-   15,
-   16,
-   19,
-   21
-  ],
-  "topk": 64,
-  "alpha": 4.0,
-  "random_control": false,
-  "directions": "directions.npz"
- }
+ ]
 }
