@@ -7,7 +7,8 @@
 #   tools/gpu run '<cmd>'              run a command there, in the repo with the env activated
 #   tools/gpu sh '<cmd>'               run a plain shell command there (e.g. to set up a new box)
 #   tools/gpu queue [--first] <name> '<cmd>'   append a job (or put it before the pending ones)
-#   tools/gpu status | worker          queue state | start the queue worker if it is not running
+#   tools/gpu status | worker          queue state | start a queue worker per GPU if not running
+#   tools/gpu stop <pattern>           stop running jobs (and all their processes) whose name matches
 set -e
 cd "$(dirname "$0")/.."
 CFG=${WSP_CONFIG:-tools/.config}
@@ -38,5 +39,6 @@ case "$cmd" in
          $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh add $1 $(printf '%q' "$2") $first" ;;
   status) $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh status" ;;
   worker) $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh start" ;;
+  stop) $SSH "$ENV && bash $WSP_REMOTE_WORK/queue.sh stop $(printf '%q' "$1")" ;;
   *) sed -n 2,9p "$0"; exit 1 ;;
 esac

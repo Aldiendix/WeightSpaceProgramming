@@ -1,6 +1,7 @@
 #!/bin/bash
 # GPU job queue on the box (env from tools/gpu): one worker per GPU, each runs one job at a time, in name order.
 #   queue.sh add <name> '<cmd>' [first]  |  status  |  start (one worker per GPU)  |  worker <gpu> (the loop)
+#   queue.sh stop <pattern>   stop running jobs whose name matches, with every process they started
 Q=$WSP_WORK/queue
 mkdir -p $Q/pending $Q/running $Q/done $Q/failed
 case "$1" in
@@ -11,6 +12,7 @@ case "$1" in
            pgrep -f "queue.sh worker $g\$" >/dev/null && { echo "gpu $g: worker already running"; continue; }
            setsid nohup bash "$0" worker $g > $Q/worker_$g.out 2>&1 < /dev/null & echo "gpu $g: started"
          done ;;
+  stop) for f in $Q/running/*$2*.pid; do [ -f "$f" ] && kill -- -$(cat "$f") && echo "stopped $(basename $f .pid)"; done ;;
   worker) export CUDA_VISIBLE_DEVICES=$2
           while true; do
             j=$(ls $Q/pending/*.sh 2>/dev/null | sort | head -1)
@@ -18,7 +20,10 @@ case "$1" in
             b=$(basename $j .sh)
             mv $j $Q/running/ 2>/dev/null || continue  # another worker took it first
             echo "$(date +%T) START $b (gpu $2)" >> $Q/queue.log
-            if bash $Q/running/$b.sh > $Q/running/$b.log 2>&1; then r=done; else r=failed; fi
+            setsid bash $Q/running/$b.sh > $Q/running/$b.log 2>&1 &  # own process group: stop kills all of it
+            echo $! > $Q/running/$b.pid
+            if wait $!; then r=done; else r=failed; fi
+            rm -f $Q/running/$b.pid
             mv $Q/running/$b.sh $Q/running/$b.log $Q/$r/; echo "$(date +%T) ${r^^} $b" >> $Q/queue.log
           done ;;
 esac
