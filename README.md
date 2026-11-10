@@ -56,7 +56,7 @@ with use.
    ticket with the subnet's miner CLI.
 2. Keep improving the PR until it runs: the queue is ordered by your last push (comments do not count), and a PR
    that conflicts with `master` waits outside the queue until you update it.
-3. When the run starts, the PR is locked: the subnet tags the commit as `mms/<sid>` and only that commit is used;
+3. When the run starts, the PR is locked: the subnet tags the commit as `axonry/<sid>` and only that commit is used;
    later pushes count only for a new ticket on the same PR.
 4. The agent derives the edit from your method, uploads it, and the subnet evaluates it against the champion. A new
    champion's directory is merged into `master`; other PRs get the result as a comment and stay open.
@@ -66,7 +66,7 @@ with use.
 Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this repository's commit and the file's sha256. Protocol of the weight-editing competition. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.
 
 **Submission** `submissions/<hotkey_ss58>/<entry>/`. A PR adds exactly one directory and touches nothing else. It holds a method for the agent, never weights: the agent derives an edit from it, on the base model or on an inherited edit, and uploads it.
-- `entry.json` (required): {"schema": "mms.entry/1", "base": <profile name in wsp/profiles.py>, "parent": <sid of a published submission whose edit to inherit, or null>}
+- `entry.json` (required): {"schema": "axonry.entry/1", "base": <profile name in wsp/profiles.py>, "parent": <sid of a published submission whose edit to inherit, or null>}
 - `METHOD.md` (required): the method for the agent: the failure to remove, the steps, what to expect
 - `derive/`: method code (Python) the agent runs, using the wsp toolkit
 - `data/`: small auxiliary data
@@ -80,9 +80,9 @@ Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this
 - relative change: per tensor: manifest relative_change_vs_parent; global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base
 - **limits**: payload bytes <= 4096 KiB, relative change per tensor <= 50%, global relative change <= 20%
 
-**Upload** (`mms.upload/1`). When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload); nothing else is uploaded. The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).
+**Upload** (`axonry.upload/1`). When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload); nothing else is uploaded. The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).
 - `edit/edit.json` (required): the edit spec: {"base", "parent" (only with a parent: "parent/edit.json"), "ops"}
 - `edit/edit.npz`: the arrays the ops reference, when they reference any
 - `edit/REPORT.md` (required): what was found, what was changed and why, controls, what did not work
-- manifest.json = {"schema": "mms.upload/1", "files": [{"path", "size", "sha256"}]}, paths relative to the prefix and starting with edit/
+- manifest.json = {"schema": "axonry.upload/1", "files": [{"path", "size", "sha256"}]}, paths relative to the prefix and starting with edit/
 <!-- protocol:end -->

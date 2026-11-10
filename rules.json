@@ -4,8 +4,9 @@
   "about": "A PR adds exactly one directory and touches nothing else. It holds a method for the agent, never weights: the agent derives an edit from it, on the base model or on an inherited edit, and uploads it.",
   "path": "submissions/<hotkey_ss58>/<entry>/",
   "path_pattern": "^submissions/5[1-9A-HJ-NP-Za-km-z]{47}/[a-z0-9][a-z0-9_.-]{0,63}/",
+  "entry_schema": "axonry.entry/1",
   "files": {
-   "entry.json": "{\"schema\": \"mms.entry/1\", \"base\": <profile name in wsp/profiles.py>, \"parent\": <sid of a published submission whose edit to inherit, or null>}",
+   "entry.json": "{\"schema\": <entry_schema>, \"base\": <profile name in wsp/profiles.py>, \"parent\": <sid of a published submission whose edit to inherit, or null>}",
    "METHOD.md": "the method for the agent: the failure to remove, the steps, what to expect",
    "derive/": "method code (Python) the agent runs, using the wsp toolkit",
    "data/": "small auxiliary data"
@@ -44,7 +45,7 @@
  },
  "upload": {
   "about": "When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload); nothing else is uploaded. The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).",
-  "schema": "mms.upload/1",
+  "schema": "axonry.upload/1",
   "files": {
    "edit/edit.json": "the edit spec: {\"base\", \"parent\" (only with a parent: \"parent/edit.json\"), \"ops\"}",
    "edit/edit.npz": "the arrays the ops reference, when they reference any",
@@ -54,6 +55,6 @@
    "edit/edit.json",
    "edit/REPORT.md"
   ],
-  "manifest": "manifest.json = {\"schema\": \"mms.upload/1\", \"files\": [{\"path\", \"size\", \"sha256\"}]}, paths relative to the prefix and starting with edit/"
+  "manifest": "manifest.json = {\"schema\": \"<schema>\", \"files\": [{\"path\", \"size\", \"sha256\"}]}, paths relative to the prefix and starting with edit/"
  }
 }
