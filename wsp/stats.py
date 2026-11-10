@@ -13,10 +13,13 @@ def _mean(v):
 def summarize(rows):
     fin = [r for r in rows if not r["cut"]]
     correct_len = sorted(r["n_tokens"] for r in rows if r["correct"])
-    by = collections.defaultdict(list)
+    by, per = collections.defaultdict(list), collections.defaultdict(list)
     for r in rows:
         by[r.get("source")].append(r["correct"])
+        per[r["id"]].append(r["correct"])
+    k = max(len(v) for v in per.values()) if per else 0
     return {"n": len(rows), "acc": _mean(r["correct"] for r in rows), "cut_share": _mean(r["cut"] for r in rows),
+            **({"samples": k, "pass_at_k": _mean(any(v) for v in per.values())} if k > 1 else {}),
             "finished": len(fin), "acc_when_finished": _mean(r["correct"] for r in fin),
             "mean_tokens": _mean(r["n_tokens"] for r in rows),
             "median_correct_tokens": correct_len[len(correct_len) // 2] if correct_len else None,

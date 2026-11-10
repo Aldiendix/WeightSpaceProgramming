@@ -33,7 +33,9 @@ def test_paired():
     p = paired(base, edit)
     assert (p["base_acc"], p["edit_acc"], p["rescues"], p["losses"]) == (0.5, 0.75, 2, 1)
     assert abs(p["gain"] - 0.25) < 1e-9 and p["se"] > 0
-    assert summarize(base)["acc_when_finished"] == 1.0
+    assert summarize(base)["acc_when_finished"] == 1.0 and "pass_at_k" not in summarize(base)
+    multi = [dict(r, id="p" + str(i // 2), k=i % 2) for i, r in enumerate(_rows([0, 1, 0, 0]))]
+    assert summarize(multi)["pass_at_k"] == 0.5 and summarize(multi)["samples"] == 2
 
 
 def test_practice_and_prompts():
@@ -59,3 +61,17 @@ def test_subsets_are_derived_from_rules(tmp_path, monkeypatch):
     (d / "case.json").write_text(json.dumps({"profile": "p", "subsets": {"dev4": "dev:4"}}))
     assert case.set_ids("c", "dev") == dev
     assert case.set_ids("c", "dev4") == ["gsm8k_train_0", "gsm8k_train_1", "math_train_algebra_0", "math_train_algebra_1"]
+
+
+def test_correct_contrast_pairs_same_problem():
+    import random
+    from wsp.directions import _correct_pairs
+    rows = [{"id": "p", "cut": False, "correct": c, "text": f"{w * 400}</think>x"}
+            for c, w in ((True, "good "), (True, "fine "), (False, "bad! "), (False, "oops "))]
+    rows.append({"id": "q", "cut": False, "correct": True, "text": "x " * 900 + "</think>"})  # no wrong one
+    pairs = _correct_pairs(rows, lambda pid: "PROMPT:", 10, random.Random(0))
+    assert len(pairs) == 2 and {p["id"] for p in pairs} == {"p"}
+    for p in pairs:
+        s, e = p["good"]["seg"]
+        assert p["bad"]["seg"] == [s, e] and p["good"]["text"][:s] == p["bad"]["text"][:s] == "PROMPT:"
+        assert p["good"]["text"][s:e].split()[0] in ("good", "fine") and p["bad"]["text"][s:e].split()[0] in ("bad!", "oops")

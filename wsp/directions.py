@@ -1,8 +1,10 @@
 """Behavior directions from matched contrast pairs, and the MLP neurons that write them.
 
-1. pairs     From the model's own correct traces: cut at a sentence boundary; the "good" branch continues with the
-             real text, the "bad" branch with the failure behavior (CONTRASTS). Same prefix, so the contrast isolates
-             the behavior, not the content.
+1. pairs     kind "loop" (and other CONTRASTS): from the model's own correct traces, cut at a sentence boundary; the
+             "good" branch continues with the real text, the "bad" branch with the failure behavior. Same prefix, so
+             the contrast isolates the behavior, not the content.
+             kind "correct": several samples of the same problem; the "good" text is the reasoning of a correct
+             answer, the "bad" one that of a wrong finished answer (same problem, equal length windows).
 2. extract   Per layer l: u_l = normalized mean(resid | bad) - mean(resid | good) over the continuation tokens, with
              split-half stability and separation; writer score of MLP neuron j:
              (mean_bad a_j - mean_good a_j) * (u_l . W_down[:, j]).
@@ -41,9 +43,35 @@ def _loop(think, sents, i, length, key):
 CONTRASTS = {"loop": _loop}
 
 
+def _correct_pairs(rows, prompt_of, n, rng, window=6000, min_chars=1000):
+    by = {}
+    for r in rows:
+        if not r["cut"]:
+            by.setdefault(r["id"], []).append(r)
+    pairs = []
+    for pid in rng.sample(sorted(by), len(by)):
+        good = [r for r in by[pid] if r["correct"]]
+        bad = [r for r in by[pid] if not r["correct"]]
+        for g, b in zip(rng.sample(good, len(good)), rng.sample(bad, len(bad))):
+            gt, bt = (x["text"].split("</think>")[0] for x in (g, b))
+            m = min(len(gt), len(bt), window)
+            if m < min_chars:
+                continue
+            base = prompt_of(pid)
+            seg = [len(base), len(base) + m]
+            pairs.append({"id": pid, "good": {"text": base + gt[:m], "seg": seg},
+                          "bad": {"text": base + bt[:m], "seg": seg}})
+    return pairs[:n]
+
+
 def make_pairs(rows, tok, thinking, n, seed=0, per_trace=1, kind="loop", cont_chars=800, min_measured=120):
-    """rows: generation rows; only correct, finished answers are used. -> list of {id, cut, good, bad}."""
+    """rows: generation rows. -> list of {id, good, bad} (see the module doc for the kinds)."""
     rng, items, pairs = random.Random(seed), by_id(), []
+    if kind == "correct":
+        def prompt_of(pid):
+            return tok.apply_chat_template([{"role": "user", "content": user_message(items[pid])}], tokenize=False,
+                                           add_generation_prompt=True, enable_thinking=thinking)
+        return _correct_pairs([r for r in rows if r["id"] in items], prompt_of, n, rng)
     cand = [r for r in rows if r["correct"] and not r["cut"] and r["id"] in items]
     rng.shuffle(cand)
     for r in cand:

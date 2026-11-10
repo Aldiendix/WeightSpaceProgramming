@@ -1,4 +1,4 @@
-"""Upload a finished task's deliverables to R2 by the fixed protocol in rules.json -> upload (mms.upload/1).
+"""Upload a finished task's deliverables to R2 by the fixed protocol in rules.json -> upload.
 
 python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run]
 

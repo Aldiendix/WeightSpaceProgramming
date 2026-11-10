@@ -2,8 +2,8 @@
 (see grade.py): "math" (\\boxed answer), "choice" (option letter), "exact" (normalized string), "ifeval" (official
 instruction checkers).
 
-practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits): GSM8K and MATH train,
-                  shipped in data/practice/ (no test items)
+practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits), shipped in
+                  data/practice/ (no test items): gsm8k_train, math_train (math), ifsynth (instruction following)
 bench:<name>      benchmark test sets, only for frozen evaluations (see BENCHMARKS)
 private:<name>    organizer-only sets from $WSP_PRIVATE_DIR (never in the repo)
 """
@@ -15,8 +15,8 @@ from pathlib import Path
 
 from .common import DATA, REPO, read_jsonl, write_jsonl
 
-PRACTICE_DIR = REPO / "data" / "practice"  # GSM8K / MATH train with answers (from the post's released logs)
-PRACTICE = ("gsm8k_train", "math_train")
+PRACTICE_DIR = REPO / "data" / "practice"  # GSM8K / MATH train with answers (from the post's released logs) and
+PRACTICE = ("gsm8k_train", "math_train")    # ifsynth: GSM8K train questions + IFEval-style checkable constraints
 
 PROMPTS = {
     "math": "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}.",
@@ -113,6 +113,42 @@ def _private(name):
     return rows
 
 
+IFSYNTH_TYPES = ("change_case:capital_word_frequency", "change_case:english_capital", "change_case:english_lowercase",
+                 "detectable_content:number_placeholders", "detectable_content:postscript",
+                 "detectable_format:json_format", "detectable_format:multiple_sections",
+                 "detectable_format:number_bullet_lists", "detectable_format:number_highlighted_sections",
+                 "detectable_format:title", "keywords:existence", "keywords:forbidden_words", "keywords:frequency",
+                 "keywords:letter_frequency", "length_constraints:number_paragraphs",
+                 "length_constraints:number_sentences", "length_constraints:number_words", "punctuation:no_comma",
+                 "startend:end_checker", "startend:quotation")
+
+
+def make_ifsynth(n=1024, seed=0):
+    """Generate the instruction-following practice set (written once to data/practice/ifsynth.jsonl.gz): GSM8K
+    train questions with 1-2 non-conflicting IFEval-style constraints, checkable by the official checkers."""
+    from lm_eval.tasks.ifeval import instructions_registry as R  # noqa: PLC0415
+
+    rng = random.Random(seed)
+    random.seed(seed)  # the registry draws its random arguments from the global generator
+    rows = []
+    for i, q in enumerate(rng.sample(_practice("gsm8k_train"), n)):
+        ids = []
+        for iid in rng.sample(IFSYNTH_TYPES, len(IFSYNTH_TYPES)):
+            if len(ids) == 1 + (i % 2):
+                break
+            if not any(iid in R.INSTRUCTION_CONFLICTS.get(j, ()) or j in R.INSTRUCTION_CONFLICTS.get(iid, ()) for j in ids):
+                ids.append(iid)
+        descs, kwargs = [], []
+        for iid in ids:
+            inst = R.INSTRUCTION_DICT[iid](iid)
+            descs.append(inst.build_description())
+            kwargs.append({k: v for k, v in (inst.get_instruction_args() or {}).items() if v is not None})
+        rows.append({"id": f"ifsynth_{i}", "source": "ifsynth", "task": "ifeval", "answer": None,
+                     "problem": q["problem"] + " " + " ".join(descs), "instruction_id_list": ids, "kwargs": kwargs})
+    write_jsonl(PRACTICE_DIR / "ifsynth.jsonl.gz", rows)
+    return rows
+
+
 def load(spec):
     """'bench:<name>', 'private:<name>', or 'practice:<name>' / 'practice:all'."""
     kind, _, name = spec.partition(":")
@@ -121,7 +157,8 @@ def load(spec):
     if kind == "private":
         return _private(name)
     if kind == "practice":
-        return [r for n in (PRACTICE if name == "all" else (name,)) for r in _practice(n)]
+        names = sorted(p.name.split(".")[0] for p in PRACTICE_DIR.glob("*.jsonl.gz")) if name == "all" else [name]
+        return [r for n in names for r in _practice(n)]
     raise ValueError(f"unknown problem set {spec}")
 
 
@@ -129,11 +166,11 @@ def by_id(spec="practice:all"):
     return {r["id"]: r for r in load(spec)}
 
 
-def balanced_sample(n, seed, exclude=()):
+def balanced_sample(n, seed, exclude=(), sources=PRACTICE):
     """n practice problems, equally many from each practice source, none in `exclude`."""
     ex, rng = set(exclude), random.Random(seed)
     out = []
-    for name in PRACTICE:
+    for name in sources:
         out += rng.sample([r for r in _practice(name) if r["id"] not in ex], n // len(PRACTICE))
     return out
 

@@ -3,7 +3,7 @@
 A case = one base model (or inherited edit) + one behavior to remove. Records protocol: only what cannot be
 regenerated cheaply and stays useful is kept in git; everything else is reproducible or scratch.
   kept in cases/<case>/:
-    case.json                  {"profile", "contrast", "subsets": {name: "split:n"}, "frozen", "parent"}
+    case.json                  {"profile", "contrast", "subsets": {name: "split:n"}, "frozen", "parent", "practice"}
     sets/dev.json, sets/holdout.json   the practice splits (subsets are derived from case.json rules)
     parent/                    (stacked cases) the inherited edit, verbatim
     edits/<edit>.json|.npz     edit specs (the products; models rebuild bit for bit from them)
@@ -45,7 +45,7 @@ def set_ids(case, s):
     if path.exists():
         return read_json(path)
     split, n = conf(case)["subsets"][s].split(":")
-    ids, srcs = set_ids(case, split), [p.split("_")[0] for p in data.PRACTICE]
+    ids, srcs = set_ids(case, split), [p.split("_")[0] for p in conf(case).get("practice", data.PRACTICE)]
     return [i for src in srcs for i in [i for i in ids if i.startswith(src)][: int(n) // len(srcs)]]
 
 
@@ -98,16 +98,18 @@ def cmd_init(a):
     if (d / "case.json").exists():
         raise SystemExit(f"{d} exists")
     subsets = dict(re.fullmatch(r"(\w+)=(\w+:\d+)", x).groups() for x in a.subset)
-    c = {"profile": a.profile, "contrast": a.contrast, "subsets": subsets, "frozen": None, "parent": None}
+    c = {"profile": a.profile, "contrast": a.contrast, "subsets": subsets, "frozen": None, "parent": None,
+         "practice": list(a.practice)}
     if a.parent:  # stack on an existing edit: copy it (with its own parents) into the case
         from .edits import copy_parent, load_chain  # noqa: PLC0415
         if load_chain(a.parent)[-1][0]["base"] != a.profile:
             raise SystemExit("the parent edit is for another base")
         c["parent"] = copy_parent(a.parent, d / "parent").relative_to(d).as_posix()
     write_json(d / "case.json", c)
-    include = read_json(a.include) if a.include else []
-    dev = include + [r["id"] for r in data.balanced_sample(a.dev - len(include), a.seed, exclude=include)]
-    sets = {"dev": dev, "holdout": [r["id"] for r in data.balanced_sample(a.holdout, a.seed + 1, exclude=dev)]}
+    include, src = (read_json(a.include) if a.include else []), tuple(a.practice)
+    dev = include + [r["id"] for r in data.balanced_sample(a.dev - len(include), a.seed, exclude=include, sources=src)]
+    sets = {"dev": dev, "holdout": [r["id"] for r in
+                                    data.balanced_sample(a.holdout, a.seed + 1, exclude=dev, sources=src)]}
     for name, ids in sets.items():
         write_json(d / "sets" / f"{name}.json", ids)
     print({k: len(set_ids(a.case, k)) for k in (*sets, *subsets)})
@@ -287,11 +289,12 @@ def main():
       (["--include"], {"help": "json id list forced into dev (e.g. screening problems already looked at)"}),
       (["--subset"], {"action": "append", "default": [], "help": "name=split:n, e.g. dev128=dev:128"}),
       (["--seed"], {"type": int, "default": 7}),
+      (["--practice"], {"nargs": "+", "default": list(data.PRACTICE), "help": "practice sources for the splits"}),
       (["--parent"], {"help": "edit to build on, e.g. a published submission's edit/edit.json (copied verbatim): "
                                 "the case starts from that model"}),
       help="create a case and its practice splits")
     p("run", case, (["model"], {"help": "base or an edit name"}), (["set"], {"help": "case set or bench:<name>"}),
-      (["--n"], {"type": int, "default": 1}), (["--force"], {"action": "store_true"}),
+      (["--n"], {"type": int, "default": 1, "help": "samples per problem"}), (["--force"], {"action": "store_true"}),
       help="generate + grade, write results (paired with base when possible)")
     p("pairs", case, (["--sets"], {"nargs": "+", "required": True, "help": "base runs to take good traces from"}),
       (["--exclude"], {"nargs": "*", "default": [], "help": "sets whose problems are not used"}),
