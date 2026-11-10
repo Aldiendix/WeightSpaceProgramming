@@ -44,6 +44,7 @@ with use.
 - **Knowledge** goes into `playbook.md` (merged, not appended) and the skill. A **case** is added only when it
   teaches something new (a base model, a failure type, a method) and keeps only its records (`wsp/case.py`):
   config, splits, edit specs, result summaries, decisions. Runs, pairs, directions and built models are scratch.
+  A case enters git once it has a conclusion (a frozen edit, or a negative result merged into the playbook).
 - **Generated views**: the README protocol section and the playbook evidence table; nothing generated is edited
   by hand, and other views (`cases/*/RESULTS.md`) are not kept.
 - **Data**: only the frozen practice sets; benchmarks are fetched and cached in scratch.
