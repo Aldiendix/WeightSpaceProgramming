@@ -17,7 +17,8 @@ wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   probe.py      teacher-forced activation / log-prob reads  directions.py  contrast pairs, directions, writers
   edits.py      declarative edit specs -> model dir + manifest (stacking on a parent)
   upload.py     deliverables -> R2 by the upload protocol   rules.py  loads rules.json, renders "Protocol" below
-.claude/skills/weight-edit/SKILL.md   the agent's workflow        playbook.md   lessons + evidence
+.claude/skills/weight-edit/SKILL.md   the agent's workflow (Claude; Codex reads it via the .agents/skills symlink)
+playbook.md     lessons + evidence
 rules.json      the competition protocol                      data/practice/  GSM8K / MATH train with answers
 cases/          worked cases (records protocol: wsp/case.py)
 tests/          CPU unit tests                                submissions/    entries (champions merged)
