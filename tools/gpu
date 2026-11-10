@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run the toolkit on a remote GPU box. Settings in tools/.config (not committed; template: tools/config.example).
+# Run the toolkit on a remote GPU box. Settings in tools/.config (not committed; template: tools/.config.example).
 # Code and kept records live in the repo; the box keeps only scratch.
 #   tools/gpu push                 sync the repo to the box (+ tools/.config and the queue script into the work dir)
 #   tools/gpu pull                     fetch the case records produced on the box
