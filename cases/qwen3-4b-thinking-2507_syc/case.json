@@ -1,0 +1,12 @@
+{
+ "profile": "qwen3-4b-thinking-2507",
+ "contrast": "sycophancy",
+ "subsets": {
+  "dev128": "dev:128"
+ },
+ "frozen": null,
+ "parent": null,
+ "practice": [
+  "mmlupro_sug"
+ ]
+}

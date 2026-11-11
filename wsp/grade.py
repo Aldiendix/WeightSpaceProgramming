@@ -1,7 +1,8 @@
 """Grading of one generated answer by task, and failure diagnosis.
 
 Graders (item["task"]):  math    last \\boxed{} of the final answer, exact match or math-verify equivalence
-                         choice  option letter from \\boxed{} or "answer is (X)"
+                         choice  option letter from \\boxed{}, else the last "answer is (X)" / "Answer: **X." (a letter
+                                 followed by a delimiter, so "the answer is A function" does not count)
                          exact   \\boxed{} answer equal to the target after normalization (case, brackets, final period)
                          ifeval  official IFEval checkers (lm-eval), strict prompt level
 The final answer is the text after </think> in thinking mode; an answer whose thinking never closed has none.
@@ -75,7 +76,7 @@ def _math(item, answer):
 def _choice(item, answer):
     box = last_boxed(answer)
     m = re.match(r"\s*\(?\s*(?:\\text\{)?\s*([A-J])\b", box) if box else None
-    found = re.findall(r"answer is\s*\(?([A-J])\b", answer)
+    found = re.findall(r"[Aa]nswer(?: is)?\s*:?\s*\**\s*\(?([A-J])(?=[.):*,]|\s*$|\s*\n)", answer)
     pred = m.group(1) if m else (found[-1] if found else None)
     return pred, pred == item["answer"]
 
@@ -92,7 +93,8 @@ def _exact(item, answer):
 
     def norm(x):
         x = re.sub(r"\\text\{([^}]*)\}", r"\1", x).strip().strip(".").lower()
-        return re.sub(r"^\((.*)\)$", r"\1", x).strip()
+        x = re.sub(r"^\((.*)\)$", r"\1", x).strip()
+        return " ".join(x.replace(",", " ").split())  # word lists: "a, b" == "a b"
     return pred, pred is not None and norm(pred) == norm(item["answer"])
 
 

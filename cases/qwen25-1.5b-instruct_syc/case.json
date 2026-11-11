@@ -1,0 +1,12 @@
+{
+ "profile": "qwen25-1.5b-instruct",
+ "contrast": "sycophancy",
+ "subsets": {
+  "dev128": "dev:128"
+ },
+ "frozen": "K14_27a1",
+ "parent": null,
+ "practice": [
+  "mmlupro_sug"
+ ]
+}

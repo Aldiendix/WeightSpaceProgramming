@@ -12,7 +12,8 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
   generated, not kept: RESULTS.md (`report`; the evidence table in playbook.md is the one generated view in git)
   scratch in $WSP_WORK: runs/<case>/<model>__<set>.jsonl, cases/<case>/{pairs*.json,directions.npz} (edits carry
     the directions and neurons they use), models/<case>__<model>/
-<model> is "base" or an edit name; <set> is a case set or subset name, or `bench:<name>`.
+<model> is "base" or an edit name, optionally with sampling overrides "<model>@key=value,..." (a decoding baseline,
+paired with the plain base run); <set> is a case set or subset name, or `bench:<name>`.
 """
 import argparse
 import json
@@ -60,6 +61,17 @@ def run_path(case, model, tag):
     return RUNS / case / f"{model}__{tag}.jsonl"
 
 
+def split_model(model):
+    """'base@repetition_penalty=1.1,hint=concise' -> ('base', {'repetition_penalty': 1.1, 'hint': 'concise'})"""
+    name, _, over = model.partition("@")
+    def val(v):
+        try:
+            return float(v)
+        except ValueError:
+            return v
+    return name, {k: val(v) for k, v in (kv.split("=") for kv in over.split(",") if kv)}
+
+
 def model_path(case, model):
     """The case's starting model (the pinned base, or the parent edit built on it for a stacked case), or the built
     model of one of its edits (built on first use)."""
@@ -74,9 +86,13 @@ def model_path(case, model):
     return str(path)
 
 
-def _base_run_for(case, keys):
-    """The base run of this case covering all (problem, sample) keys (e.g. base__dev covers dev128)."""
-    for p in sorted((RUNS / case).glob(f"{BASE}__*.jsonl"), key=lambda p: p.stat().st_size):
+def _base_run_for(case, keys, tag):
+    """The base run of this case covering all (problem, sample) keys: the one of the same set first, else another
+    covering them (e.g. base__dev covers dev128). Variants of a benchmark share ids (bench:mmlupro500_sug), so the
+    same set must win."""
+    same = run_path(case, BASE, tag)
+    others = sorted((RUNS / case).glob(f"{BASE}__*.jsonl"), key=lambda p: p.stat().st_size)
+    for p in ([same] if same.exists() else []) + [p for p in others if p != same and tag not in data.BENCHMARKS]:
         rows = read_jsonl(p)
         if keys <= {(r["id"], r["k"]) for r in rows}:
             return rows
@@ -87,7 +103,7 @@ def _write_result(case, model, tag):
     rows = read_jsonl(run_path(case, model, tag))
     res = {"summary": summarize(rows), "paired": None}
     if model != BASE:
-        base = _base_run_for(case, {(r["id"], r["k"]) for r in rows})
+        base = _base_run_for(case, {(r["id"], r["k"]) for r in rows}, tag)
         res["paired"] = paired(base, rows) if base else None
     write_json(cdir(case) / "results" / f"{model}__{tag}.json", res)
     return res
@@ -121,8 +137,9 @@ def cmd_run(a):
     prof = profiles.get(conf(a.case)["profile"])
     tag, items = set_items(a.case, a.set)
     out = run_path(a.case, a.model, tag)
+    name, sampling = split_model(a.model)
     if a.force or not out.exists():
-        generate(model_path(a.case, a.model), items, prof, n=a.n, out=out)
+        generate(model_path(a.case, name), items, prof, n=a.n, out=out, sampling=sampling)
     res = _write_result(a.case, a.model, tag)
     if a.model == BASE:  # pair every edit already run on this set
         for p in (RUNS / a.case).glob(f"*__{tag}.jsonl"):
@@ -168,16 +185,19 @@ def cmd_selectivity(a):
 
 
 def cmd_edit(a):
-    from .edits import dir_ablate_spec  # noqa: PLC0415
-
-    name = a.name or ("RAND_" if a.random_control else "") + \
-        f"L{'-'.join(map(str, a.layers))}_k{a.topk}_a{a.alpha:g}"
-    from .edits import spec_size  # noqa: PLC0415
+    from .edits import dir_ablate_spec, low_rank_spec, spec_size  # noqa: PLC0415
 
     c = conf(a.case)
     parent = os.path.relpath(cdir(a.case) / c["parent"], cdir(a.case) / "edits") if c.get("parent") else None
-    spec = dir_ablate_spec(scratch(a.case) / "directions.npz", c["profile"], a.layers, a.topk, a.alpha,
-                           cdir(a.case) / "edits", name, a.random_control, parent=parent)
+    layers = "-".join(map(str, a.layers))
+    if a.low_rank:
+        name = a.name or f"LR_{a.low_rank}_L{layers}_keep{a.keep:g}"
+        spec = low_rank_spec(c["profile"], a.layers, a.low_rank, a.keep, cdir(a.case) / "edits", name, parent)
+    else:
+        tgt = "" if a.targets == ["down_proj"] else "_" + "+".join(t.split("_")[0] for t in a.targets)
+        name = a.name or ("RAND_" if a.random_control else "") + f"L{layers}_k{a.topk}_a{a.alpha:g}{tgt}"
+        spec = dir_ablate_spec(scratch(a.case) / "directions.npz", c["profile"], a.layers, a.topk, a.alpha,
+                               cdir(a.case) / "edits", name, a.random_control, parent=parent, targets=a.targets)
     tensors, payload = spec_size(spec)
     print(f"{spec}: {tensors} tensors, payload {payload} bytes")
 
@@ -306,7 +326,13 @@ def main():
       help="log-prob of held-out good / bad continuations")
     p("edit", case, (["--layers"], {"type": int, "nargs": "+", "required": True}),
       (["--topk"], {"type": int, "default": 64}), (["--alpha"], {"type": float, "default": 6.0}),
-      (["--random-control"], {"action": "store_true"}), (["--name"], {}), help="write a dir_ablate edit spec")
+      (["--random-control"], {"action": "store_true"}), (["--name"], {}),
+      (["--targets"], {"nargs": "+", "default": ["down_proj"], "choices": ["down_proj", "o_proj"],
+                       "help": "matrices the direction is ablated from (o_proj: all columns)"}),
+      (["--low-rank"], {"choices": ["gate_proj", "up_proj", "down_proj"],
+                        "help": "instead: replace that MLP matrix by its rank-k approximation (LASER)"}),
+      (["--keep"], {"type": float, "default": 0.1, "help": "fraction of the rank kept by --low-rank"}),
+      help="write an edit spec (dir_ablate on the case's directions, or --low-rank)")
     p("freeze", case, (["edit"], {}), help="record the frozen edit before HOLDOUT / benchmarks")
     p("screen", (["profiles"], {"nargs": "+"}), (["--set"], {"default": "screen64"}),
       help="base runs of several profiles on cases/screening/sets/<set>.json")

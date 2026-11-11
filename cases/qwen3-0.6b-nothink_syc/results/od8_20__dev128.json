@@ -1,0 +1,41 @@
+{
+ "summary": {
+  "n": 256,
+  "acc": 0.11328125,
+  "cut_share": 0.02734375,
+  "samples": 2,
+  "pass_at_k": 0.1640625,
+  "finished": 249,
+  "acc_when_finished": 0.11646586345381527,
+  "mean_tokens": 300.9453125,
+  "median_correct_tokens": 195,
+  "kinds": {
+   "finished_wrong": 214,
+   "correct": 29,
+   "finished_no_answer": 6,
+   "cut_other": 7
+  },
+  "by_source": {
+   "mmlupro_sug": 0.11328125
+  }
+ },
+ "paired": {
+  "n": 256,
+  "problems": 128,
+  "base_acc": 0.13671875,
+  "edit_acc": 0.11328125,
+  "gain": -0.0234375,
+  "se": 0.01741417279470994,
+  "rescues": 7,
+  "losses": 13,
+  "base_cut": 0.05078125,
+  "edit_cut": 0.02734375,
+  "by_source": {
+   "mmlupro_sug": {
+    "n": 256,
+    "base": 0.13671875,
+    "edit": 0.11328125
+   }
+  }
+ }
+}

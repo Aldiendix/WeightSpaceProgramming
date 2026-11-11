@@ -1,0 +1,79 @@
+{
+ "name": "L14-15-16-17-18-19-20-21-22_k64_a3",
+ "base": "qwen35-2b-think",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.14.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u14",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols14"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u15",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.16.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u16",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols16"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.17.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u17",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols17"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.18.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u18",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols18"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u19",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols19"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.20.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u20",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols20"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.21.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u21",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols21"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.22.mlp.down_proj.weight",
+   "u": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#u22",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L14-15-16-17-18-19-20-21-22_k64_a3.npz#cols22"
+  }
+ ],
+ "parent": "../parent/L15L19_k64_a6.json"
+}

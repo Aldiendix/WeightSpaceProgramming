@@ -23,11 +23,15 @@ def read_jsonl(path):
 
 
 def write_jsonl(path, rows):
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    op = gzip.open if str(path).endswith(".gz") else open
-    with op(path, "wt", encoding="utf-8") as f:
+    """Atomic (temp file + rename): concurrent jobs may build the same cache file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}")
+    op = gzip.open if path.name.endswith(".gz") else open
+    with op(tmp, "wt", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    tmp.replace(path)
 
 
 def read_json(path):

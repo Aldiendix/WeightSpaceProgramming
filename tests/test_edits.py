@@ -76,3 +76,11 @@ def test_chain_rejects_mixed_bases(tmp_path):
     (tmp_path / "c.json").write_text(json.dumps({"name": "c", "base": "b", "parent": "p.json", "ops": []}))
     with pytest.raises(ValueError):
         load_chain(tmp_path / "c.json")
+
+
+def test_low_rank_keeps_top_singular_components(tmp_path, tiny_model):
+    spec = _spec(tmp_path, [{"op": "low_rank", "tensor": T, "keep": 0.25}])  # 4x6 -> rank 1
+    out, _ = build(spec, tmp_path / "m", base_dir=tiny_model)
+    W = load_file(str(out / "model.safetensors"))[T].float()
+    S = torch.linalg.svdvals(W)
+    assert S[1] / S[0] < 0.02  # rank 1 up to bf16 rounding

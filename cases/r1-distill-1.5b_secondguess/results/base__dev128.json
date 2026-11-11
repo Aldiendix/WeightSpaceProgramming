@@ -1,0 +1,24 @@
+{
+ "summary": {
+  "n": 1024,
+  "acc": 0.89453125,
+  "cut_share": 0.01171875,
+  "samples": 8,
+  "pass_at_k": 0.96875,
+  "finished": 1012,
+  "acc_when_finished": 0.9051383399209486,
+  "mean_tokens": 3523.9140625,
+  "median_correct_tokens": 1624,
+  "kinds": {
+   "correct": 916,
+   "finished_wrong": 96,
+   "cut_loop": 8,
+   "cut_other": 4
+  },
+  "by_source": {
+   "gsm8k": 0.94140625,
+   "math": 0.84765625
+  }
+ },
+ "paired": null
+}

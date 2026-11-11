@@ -1,0 +1,12 @@
+{
+ "name": "LR_up_proj_L8_keep0.02",
+ "base": "qwen35-2b-think",
+ "ops": [
+  {
+   "op": "low_rank",
+   "tensor": "model.language_model.layers.8.mlp.up_proj.weight",
+   "keep": 0.02
+  }
+ ],
+ "parent": "../parent/L15L19_k64_a6.json"
+}

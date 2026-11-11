@@ -5,6 +5,12 @@
              the contrast isolates the behavior, not the content.
              kind "correct": several samples of the same problem; the "good" text is the reasoning of a correct
              answer, the "bad" one that of a wrong finished answer (same problem, equal length windows).
+             kind "conclude": a correct trace cut right after it first states the right answer; the "good" branch
+             closes the thinking and answers (its own final answer), the "bad" one keeps verifying (its own text).
+             kind "secondguess": a wrong trace that stated the right answer and then abandoned it, cut there; the
+             "good" branch closes the thinking with that answer, the "bad" one is its own doubting continuation.
+             kind "sycophancy": the model's own answer to a question carrying a user's wrong guess, read after that
+             prompt (bad) and after the same question with a neutral note instead (good); same answer tokens.
 2. extract   Per layer l: u_l = normalized mean(resid | bad) - mean(resid | good) over the continuation tokens, with
              split-half stability and separation; writer score of MLP neuron j:
              (mean_bad a_j - mean_good a_j) * (u_l . W_down[:, j]).
@@ -64,14 +70,104 @@ def _correct_pairs(rows, prompt_of, n, rng, window=6000, min_chars=1000):
     return pairs[:n]
 
 
+def first_conclusion(think, gold):
+    """Character position where the thinking first states the gold answer as a result (= X, answer is X, boxed{X}),
+    or None; trivial one-digit answers are skipped (they match by chance)."""
+    g = gold.strip()
+    if len(re.sub(r"\D", "", g)) < 2 and len(g) < 3:
+        return None
+    m = re.search(r"(=\s*\$?|answer is\s*\$?|boxed\{)" + re.escape(g) + r"(?![0-9])", think)
+    return m.end() if m else None
+
+
+def _conclude_pairs(rows, prompt_of, items, n, rng, length=600, min_after=1500):
+    pairs = []
+    for r in rng.sample(rows, len(rows)):
+        if not (r["correct"] and not r["cut"] and "</think>" in r["text"]):
+            continue
+        think, answer = r["text"].split("</think>", 1)
+        p = first_conclusion(think, items[r["id"]]["answer"])
+        if p is None or len(think) - p < min_after:
+            continue
+        nxt = SENT.search(think, p)
+        cut = nxt.end() if nxt else p
+        base = prompt_of(r["id"]) + think[:cut]
+        good, bad = "</think>" + answer[: length - 8], think[cut:cut + length]
+        m = min(len(good), len(bad))
+        seg = [len(base), len(base) + m]
+        pairs.append({"id": r["id"], "good": {"text": base + good[:m], "seg": seg}, "bad": {"text": base + bad[:m], "seg": seg}})
+        if len(pairs) >= n:
+            break
+    return pairs
+
+
+def _secondguess_pairs(rows, prompt_of, items, n, rng, length=600):
+    pairs = []
+    for r in rng.sample(rows, len(rows)):
+        if r["correct"] or r["cut"] or "</think>" not in r["text"]:
+            continue
+        think = r["text"].split("</think>", 1)[0]
+        gold = items[r["id"]]["answer"]
+        p = first_conclusion(think, gold)
+        if p is None:
+            continue
+        nxt = SENT.search(think, p)
+        cut = nxt.end() if nxt else p
+        base = prompt_of(r["id"]) + think[:cut]
+        good = f"</think>\n\nThe answer is $\\boxed{{{gold}}}$."
+        bad = think[cut:cut + length]
+        m = min(len(good), len(bad))  # short on purpose: the decision is in the first words (confirm vs doubt)
+        if m < 20:
+            continue
+        seg = [len(base), len(base) + m]
+        pairs.append({"id": r["id"], "good": {"text": base + good[:m], "seg": seg}, "bad": {"text": base + bad[:m], "seg": seg}})
+        if len(pairs) >= n:
+            break
+    return pairs
+
+
+NEUTRAL_NOTE = "I'm curious what you think about this question."
+
+
+def _sycophancy_pairs(rows, prompt_for, items, n, rng, length=400):
+    """The same answer text of the model, read after the question with the user's wrong guess (bad) and with a
+    neutral note of similar length (good): the content cancels, the difference is the guess's pull."""
+    pairs = []
+    for r in rng.sample(rows, len(rows)):
+        it = items.get(r["id"])
+        if r["cut"] or not it or not it.get("guess") or len(r["text"]) < 40:
+            continue
+        cont = r["text"][:length]
+        sides = {}
+        for side, note in (("good", NEUTRAL_NOTE), ("bad", it["note"])):
+            base = prompt_for(it | {"note": note})
+            sides[side] = {"text": base + cont, "seg": [len(base), len(base) + len(cont)]}
+        pairs.append({"id": r["id"], **sides})
+        if len(pairs) >= n:
+            break
+    return pairs
+
+
 def make_pairs(rows, tok, thinking, n, seed=0, per_trace=1, kind="loop", cont_chars=800, min_measured=120):
     """rows: generation rows. -> list of {id, good, bad} (see the module doc for the kinds)."""
     rng, items, pairs = random.Random(seed), by_id(), []
+    def prompt_of(pid):
+        return tok.apply_chat_template([{"role": "user", "content": user_message(items[pid])}], tokenize=False,
+                                       add_generation_prompt=True, enable_thinking=thinking)
+
     if kind == "correct":
-        def prompt_of(pid):
-            return tok.apply_chat_template([{"role": "user", "content": user_message(items[pid])}], tokenize=False,
-                                           add_generation_prompt=True, enable_thinking=thinking)
         return _correct_pairs([r for r in rows if r["id"] in items], prompt_of, n, rng)
+    if kind == "conclude":
+        return _conclude_pairs([r for r in rows if r["id"] in items], prompt_of, items, n, rng)
+    if kind == "secondguess":
+        return _secondguess_pairs([r for r in rows if r["id"] in items], prompt_of, items, n, rng)
+    if kind == "sycophancy":
+        one = {}
+        for r in rows:  # one answer per question
+            one.setdefault(r["id"], r)
+        return _sycophancy_pairs(list(one.values()), lambda it: tok.apply_chat_template(
+            [{"role": "user", "content": user_message(it)}], tokenize=False, add_generation_prompt=True,
+            enable_thinking=thinking), items, n, rng)
     cand = [r for r in rows if r["correct"] and not r["cut"] and r["id"] in items]
     rng.shuffle(cand)
     for r in cand:

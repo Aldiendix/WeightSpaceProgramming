@@ -1,0 +1,14 @@
+{
+ "profile": "r1-distill-1.5b",
+ "contrast": "secondguess",
+ "subsets": {
+  "dev128": "dev:128",
+  "holdout256": "holdout:256"
+ },
+ "frozen": null,
+ "parent": null,
+ "practice": [
+  "gsm8k_train",
+  "math_train"
+ ]
+}

@@ -1,0 +1,39 @@
+{
+ "name": "L15-19-21-22_k128_a3",
+ "base": "qwen35-2b-think",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.15.mlp.down_proj.weight",
+   "u": "L15-19-21-22_k128_a3.npz#u15",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15-19-21-22_k128_a3.npz#cols15"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.19.mlp.down_proj.weight",
+   "u": "L15-19-21-22_k128_a3.npz#u19",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15-19-21-22_k128_a3.npz#cols19"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.21.mlp.down_proj.weight",
+   "u": "L15-19-21-22_k128_a3.npz#u21",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15-19-21-22_k128_a3.npz#cols21"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.22.mlp.down_proj.weight",
+   "u": "L15-19-21-22_k128_a3.npz#u22",
+   "alpha": 3.0,
+   "side": "out",
+   "cols": "L15-19-21-22_k128_a3.npz#cols22"
+  }
+ ],
+ "parent": "../parent/L15L19_k64_a6.json"
+}

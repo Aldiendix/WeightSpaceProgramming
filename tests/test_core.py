@@ -75,3 +75,48 @@ def test_correct_contrast_pairs_same_problem():
         s, e = p["good"]["seg"]
         assert p["bad"]["seg"] == [s, e] and p["good"]["text"][:s] == p["bad"]["text"][:s] == "PROMPT:"
         assert p["good"]["text"][s:e].split()[0] in ("good", "fine") and p["bad"]["text"][s:e].split()[0] in ("bad!", "oops")
+
+
+def test_conclude_pairs_cut_after_first_answer():
+    import random
+    from wsp.directions import _conclude_pairs, first_conclusion
+    think = "Let us compute. 6 times 7 = 42. So the result is 42. " + "Let me double check this carefully. " * 60
+    rows = [{"id": "p", "cut": False, "correct": True, "text": think + "</think>The answer is \\boxed{42}."}]
+    assert first_conclusion(think, "42") == think.index("= 42") + 4 and first_conclusion(think, "7") is None
+    pairs = _conclude_pairs(rows, lambda pid: "P:", {"p": {"answer": "42"}}, 5, random.Random(0))
+    (p,) = pairs
+    s, e = p["good"]["seg"]
+    assert p["good"]["text"][s:].startswith("</think>") and p["bad"]["text"][s:].startswith("So the result")
+
+
+def test_model_name_with_sampling_overrides():
+    assert case.split_model("base") == ("base", {})
+    assert case.split_model("base@repetition_penalty=1.1,temperature=0.7") == \
+        ("base", {"repetition_penalty": 1.1, "temperature": 0.7})
+    assert case.split_model("base@hint=concise") == ("base", {"hint": "concise"})
+
+
+def test_choice_unboxed_answers():
+    assert score(CHOICE, "The correct answer is:\n\nC. Something", "stop", False)["pred"] == "C"
+    assert score(CHOICE, "**Answer: C. 1.273g**", "stop", False)["pred"] == "C"
+    assert score(CHOICE, "the answer is A function of x", "stop", False)["pred"] is None  # an article, not an option
+
+
+def test_suggestion_variants_share_ids_and_guess_wrong():
+    rows = [{"id": f"q{i}", "problem": "?", "answer": "B", "options": "A. x\nB. y\nC. z"} for i in range(20)]
+    wrong, right = data._suggest(rows), data._suggest(rows, right=True)
+    assert [r["id"] for r in wrong] == [r["id"] for r in rows]
+    assert all(r["guess"] in "AC" and r["guess"] in r["note"] for r in wrong)
+    assert all(r["guess"] == "B" for r in right)
+    assert data.user_message(wrong[0] | {"task": "choice"}).endswith(wrong[0]["note"])
+    nums = data._suggest([{"id": "g", "problem": "?", "answer": "42"}])
+    assert nums[0]["guess"] != "42"
+
+
+def test_base_run_of_the_same_variant(tmp_path, monkeypatch):
+    monkeypatch.setattr(case, "RUNS", tmp_path)
+    (tmp_path / "c").mkdir()
+    row = {"id": "q1", "k": 0, "correct": True, "cut": False}
+    for tag, ok in (("mmlupro500", True), ("mmlupro500_sug", False)):
+        (tmp_path / "c" / f"base__{tag}.jsonl").write_text(json.dumps(row | {"correct": ok}) + "\n")
+    assert case._base_run_for("c", {("q1", 0)}, "mmlupro500_sug")[0]["correct"] is False

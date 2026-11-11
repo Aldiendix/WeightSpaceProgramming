@@ -1,0 +1,70 @@
+{
+ "name": "d18_25k64a6",
+ "base": "qwen3-0.6b-nothink",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.18.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u18",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols18"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.19.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u19",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols19"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.20.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u20",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols20"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.21.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u21",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols21"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.22.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u22",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols22"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.23.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u23",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols23"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.24.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u24",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols24"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.25.mlp.down_proj.weight",
+   "u": "d18_25k64a6.npz#u25",
+   "alpha": 6.0,
+   "side": "out",
+   "cols": "d18_25k64a6.npz#cols25"
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "profile": "qwen35-4b-think",
+ "contrast": "loop",
+ "subsets": {
+  "dev128": "dev:128",
+  "holdout256": "holdout:256"
+ },
+ "frozen": null,
+ "parent": null,
+ "practice": [
+  "gsm8k_train",
+  "math_train",
+  "mmlupro"
+ ]
+}

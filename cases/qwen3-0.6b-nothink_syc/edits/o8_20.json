@@ -1,0 +1,97 @@
+{
+ "name": "o8_20",
+ "base": "qwen3-0.6b-nothink",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.8.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u8",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.9.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u9",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.10.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u10",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.11.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u11",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.12.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u12",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.13.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u13",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.14.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u14",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.15.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u15",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.16.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u16",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.17.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u17",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.18.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u18",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.19.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u19",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.20.self_attn.o_proj.weight",
+   "u": "o8_20.npz#u20",
+   "alpha": 1.0,
+   "side": "out"
+  }
+ ]
+}

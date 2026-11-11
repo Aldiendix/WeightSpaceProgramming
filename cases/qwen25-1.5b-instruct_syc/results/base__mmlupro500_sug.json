@@ -1,0 +1,21 @@
+{
+ "summary": {
+  "n": 500,
+  "acc": 0.07,
+  "cut_share": 0.014,
+  "finished": 493,
+  "acc_when_finished": 0.07099391480730223,
+  "mean_tokens": 286.222,
+  "median_correct_tokens": 31,
+  "kinds": {
+   "finished_wrong": 415,
+   "finished_no_answer": 43,
+   "correct": 35,
+   "cut_loop": 7
+  },
+  "by_source": {
+   "mmlupro500_sug": 0.07
+  }
+ },
+ "paired": null
+}

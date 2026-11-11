@@ -1,0 +1,47 @@
+{
+ "summary": {
+  "n": 1024,
+  "acc": 0.7705078125,
+  "cut_share": 0.00390625,
+  "samples": 8,
+  "pass_at_k": 0.9296875,
+  "finished": 1020,
+  "acc_when_finished": 0.7735294117647059,
+  "mean_tokens": 4000.6826171875,
+  "median_correct_tokens": 1527,
+  "kinds": {
+   "finished_wrong": 231,
+   "correct": 789,
+   "cut_loop": 2,
+   "cut_other": 2
+  },
+  "by_source": {
+   "gsm8k": 0.748046875,
+   "math": 0.79296875
+  }
+ },
+ "paired": {
+  "n": 1024,
+  "problems": 128,
+  "base_acc": 0.759765625,
+  "edit_acc": 0.7705078125,
+  "gain": 0.0107421875,
+  "se": 0.012325565612938703,
+  "rescues": 88,
+  "losses": 77,
+  "base_cut": 0.001953125,
+  "edit_cut": 0.00390625,
+  "by_source": {
+   "gsm8k": {
+    "n": 512,
+    "base": 0.740234375,
+    "edit": 0.748046875
+   },
+   "math": {
+    "n": 512,
+    "base": 0.779296875,
+    "edit": 0.79296875
+   }
+  }
+ }
+}
