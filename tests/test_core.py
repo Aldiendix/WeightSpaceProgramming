@@ -100,6 +100,8 @@ def test_choice_unboxed_answers():
     assert score(CHOICE, "The correct answer is:\n\nC. Something", "stop", False)["pred"] == "C"
     assert score(CHOICE, "**Answer: C. 1.273g**", "stop", False)["pred"] == "C"
     assert score(CHOICE, "the answer is A function of x", "stop", False)["pred"] is None  # an article, not an option
+    assert score(CHOICE, "D. a worm", "stop", False)["pred"] == "D"  # a reply naming one option
+    assert score(CHOICE, "A. x is wrong\nB. y is wrong", "stop", False)["pred"] is None  # a walk through the options
 
 
 def test_suggestion_variants_share_ids_and_guess_wrong():

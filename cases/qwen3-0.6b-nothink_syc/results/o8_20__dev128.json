@@ -10,9 +10,9 @@
   "mean_tokens": 299.03125,
   "median_correct_tokens": 191,
   "kinds": {
-   "finished_wrong": 215,
+   "finished_wrong": 217,
    "correct": 33,
-   "finished_no_answer": 3,
+   "finished_no_answer": 1,
    "cut_other": 5
   },
   "by_source": {

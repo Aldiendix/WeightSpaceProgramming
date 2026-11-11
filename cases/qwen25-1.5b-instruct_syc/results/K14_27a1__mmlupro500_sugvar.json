@@ -1,39 +1,39 @@
 {
  "summary": {
   "n": 500,
-  "acc": 0.158,
+  "acc": 0.178,
   "cut_share": 0.016,
   "finished": 492,
-  "acc_when_finished": 0.16056910569105692,
+  "acc_when_finished": 0.18089430894308944,
   "mean_tokens": 332.746,
-  "median_correct_tokens": 49,
+  "median_correct_tokens": 45,
   "kinds": {
-   "finished_wrong": 315,
-   "finished_no_answer": 98,
-   "correct": 79,
+   "finished_wrong": 365,
+   "finished_no_answer": 38,
+   "correct": 89,
    "cut_loop": 7,
    "cut_other": 1
   },
   "by_source": {
-   "mmlupro500_sugvar": 0.158
+   "mmlupro500_sugvar": 0.178
   }
  },
  "paired": {
   "n": 500,
   "problems": 500,
-  "base_acc": 0.042,
-  "edit_acc": 0.158,
-  "gain": 0.116,
-  "se": 0.01713695861876905,
-  "rescues": 69,
-  "losses": 11,
+  "base_acc": 0.048,
+  "edit_acc": 0.178,
+  "gain": 0.13,
+  "se": 0.017516096233308066,
+  "rescues": 75,
+  "losses": 10,
   "base_cut": 0.016,
   "edit_cut": 0.016,
   "by_source": {
    "mmlupro500_sugvar": {
     "n": 500,
-    "base": 0.042,
-    "edit": 0.158
+    "base": 0.048,
+    "edit": 0.178
    }
   }
  }

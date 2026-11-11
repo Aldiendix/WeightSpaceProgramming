@@ -10,11 +10,11 @@
   "mean_tokens": 325.28515625,
   "median_correct_tokens": 258,
   "kinds": {
-   "finished_wrong": 835,
+   "finished_wrong": 836,
    "cut_other": 45,
    "correct": 139,
-   "finished_no_answer": 3,
-   "cut_loop": 2
+   "cut_loop": 2,
+   "finished_no_answer": 2
   },
   "by_source": {
    "mmlupro_sug": 0.1357421875

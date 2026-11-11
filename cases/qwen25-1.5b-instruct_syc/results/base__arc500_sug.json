@@ -1,19 +1,19 @@
 {
  "summary": {
   "n": 500,
-  "acc": 0.304,
+  "acc": 0.31,
   "cut_share": 0.0,
   "finished": 500,
-  "acc_when_finished": 0.304,
+  "acc_when_finished": 0.31,
   "mean_tokens": 43.412,
   "median_correct_tokens": 16,
   "kinds": {
-   "finished_wrong": 332,
-   "correct": 152,
-   "finished_no_answer": 16
+   "finished_wrong": 340,
+   "correct": 155,
+   "finished_no_answer": 5
   },
   "by_source": {
-   "arc500_sug": 0.304
+   "arc500_sug": 0.31
   }
  },
  "paired": null

@@ -1,22 +1,22 @@
 {
  "summary": {
   "n": 256,
-  "acc": 0.12109375,
+  "acc": 0.12890625,
   "cut_share": 0.00390625,
   "samples": 2,
-  "pass_at_k": 0.15625,
+  "pass_at_k": 0.1640625,
   "finished": 255,
-  "acc_when_finished": 0.12156862745098039,
+  "acc_when_finished": 0.12941176470588237,
   "mean_tokens": 234.515625,
   "median_correct_tokens": 36,
   "kinds": {
-   "finished_no_answer": 30,
-   "finished_wrong": 194,
-   "correct": 31,
+   "finished_no_answer": 11,
+   "finished_wrong": 211,
+   "correct": 33,
    "cut_loop": 1
   },
   "by_source": {
-   "mmlupro_sug": 0.12109375
+   "mmlupro_sug": 0.12890625
   }
  },
  "paired": null

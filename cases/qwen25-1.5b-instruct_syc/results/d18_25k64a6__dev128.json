@@ -1,31 +1,31 @@
 {
  "summary": {
   "n": 256,
-  "acc": 0.11328125,
+  "acc": 0.12109375,
   "cut_share": 0.01171875,
   "samples": 2,
   "pass_at_k": 0.1640625,
   "finished": 253,
-  "acc_when_finished": 0.11462450592885376,
+  "acc_when_finished": 0.1225296442687747,
   "mean_tokens": 309.37109375,
-  "median_correct_tokens": 84,
+  "median_correct_tokens": 82,
   "kinds": {
-   "finished_no_answer": 34,
-   "finished_wrong": 190,
-   "correct": 29,
+   "finished_no_answer": 20,
+   "finished_wrong": 202,
+   "correct": 31,
    "cut_other": 3
   },
   "by_source": {
-   "mmlupro_sug": 0.11328125
+   "mmlupro_sug": 0.12109375
   }
  },
  "paired": {
   "n": 256,
   "problems": 128,
-  "base_acc": 0.12109375,
-  "edit_acc": 0.11328125,
+  "base_acc": 0.12890625,
+  "edit_acc": 0.12109375,
   "gain": -0.0078125,
-  "se": 0.016623485626072416,
+  "se": 0.015671068896041782,
   "rescues": 7,
   "losses": 9,
   "base_cut": 0.00390625,
@@ -33,8 +33,8 @@
   "by_source": {
    "mmlupro_sug": {
     "n": 256,
-    "base": 0.12109375,
-    "edit": 0.11328125
+    "base": 0.12890625,
+    "edit": 0.12109375
    }
   }
  }

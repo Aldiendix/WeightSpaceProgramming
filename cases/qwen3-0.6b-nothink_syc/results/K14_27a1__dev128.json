@@ -11,9 +11,9 @@
   "median_correct_tokens": 232,
   "kinds": {
    "cut_other": 9,
-   "finished_wrong": 191,
+   "finished_wrong": 193,
    "correct": 52,
-   "finished_no_answer": 4
+   "finished_no_answer": 2
   },
   "by_source": {
    "mmlupro_sug": 0.203125

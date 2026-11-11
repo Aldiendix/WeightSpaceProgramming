@@ -8,10 +8,10 @@
   "mean_tokens": 341.286,
   "median_correct_tokens": 248,
   "kinds": {
-   "finished_wrong": 401,
+   "finished_wrong": 402,
    "correct": 72,
    "cut_other": 24,
-   "finished_no_answer": 3
+   "finished_no_answer": 2
   },
   "by_source": {
    "mmlupro500_sug": 0.144

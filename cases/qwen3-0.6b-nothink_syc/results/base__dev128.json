@@ -12,8 +12,7 @@
   "kinds": {
    "cut_other": 13,
    "correct": 35,
-   "finished_wrong": 207,
-   "finished_no_answer": 1
+   "finished_wrong": 208
   },
   "by_source": {
    "mmlupro_sug": 0.13671875

@@ -1,0 +1,76 @@
+{
+ "name": "F18_27a2",
+ "base": "qwen25-1.5b-instruct",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.18.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u18",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.19.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u19",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.20.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u20",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.21.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u21",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.22.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u22",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.23.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u23",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.24.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u24",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.25.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u25",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.26.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u26",
+   "alpha": 2.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.27.self_attn.k_proj.weight",
+   "u": "F18_27a2.npz#u27",
+   "alpha": 2.0,
+   "side": "in"
+  }
+ ]
+}

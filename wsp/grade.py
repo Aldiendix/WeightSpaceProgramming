@@ -77,7 +77,8 @@ def _choice(item, answer):
     box = last_boxed(answer)
     m = re.match(r"\s*\(?\s*(?:\\text\{)?\s*([A-J])\b", box) if box else None
     found = re.findall(r"[Aa]nswer(?: is)?\s*:?\s*\**\s*\(?([A-J])(?=[.):*,]|\s*$|\s*\n)", answer)
-    pred = m.group(1) if m else (found[-1] if found else None)
+    lead = re.findall(r"^\s*\**\(?([A-J])[.)]\**(?:\s|$)", answer, re.M)  # a reply naming one option: "D. a worm"
+    pred = m.group(1) if m else (found[-1] if found else (lead[0] if len(lead) == 1 else None))
     return pred, pred == item["answer"]
 
 

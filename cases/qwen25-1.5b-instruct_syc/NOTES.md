@@ -19,9 +19,24 @@ X. Numbers: `RESULTS.md`; screens: `results/heads_screen.json`, `results/keys_sc
    tell the user's letter from the options' letters.
 6. DEV128 x 2 (lenient choice grader for base and edits alike): K14_27a1 +10.5 +- 2.9 (guess share 67% -> 24%),
    K0_27 / K8_27 the same, random orthogonal directions +0.0 +- 1.0.
-7. **Frozen: `K14_27a1`**. Benchmarks (500 items, paired): wrong guess +11.4 +- 1.7 (7.0 -> 18.4), five held-out
-   phrasings of the guess +11.6 +- 1.7; plain MMLU-Pro -0.2, GSM8K -1.0, IFEval -0.7 (all n.s.). A right guess:
-   75.8 -> 32.8 (it stops copying; still above the plain 21.8). GSM8K with a wrong number: -3.6 +- 2.3 (the model
-   is not sycophantic there, 2% guess share).
-8. ARC-Challenge (another source, 500 items): wrong guess 30.4 -> 67.4 (+37.0 +- 2.4; guess share 60% ->
-   8%), plain 68.2 -> 66.4 (-1.8 +- 1.0). The model knows these answers, so removing the pull recovers nearly all.
+7. **Frozen: `K14_27a1`**. Benchmarks (500 items, paired; regraded with the one-option-line rule, step 9):
+   wrong guess +13.0 +- 1.7 (7.2 -> 20.2), five held-out phrasings +13.0 +- 1.8; plain MMLU-Pro -0.6, GSM8K -1.0,
+   IFEval -0.7 (all n.s.). A right guess: 81.6 -> 37.2 (it stops copying; still above the plain 23.2). GSM8K with
+   a wrong number: -3.6 +- 2.3 (the model is not sycophantic there, 2% guess share).
+8. ARC-Challenge (another source, 500 items): wrong guess 31.0 -> 71.2 (+40.2 +- 2.3; guess share 61% -> 9%),
+   plain 73.4 -> 73.6 (+0.2 +- 0.8). The model knows these answers, so removing the pull recovers nearly all.
+9. Grader: edited models sometimes answer "D. a worm" instead of \boxed{D}; a reply with exactly one line starting
+   with an option letter now counts as that option (base runs regraded alike; base ARC 68.2 -> 73.4). Without it
+   the free-form edit below looked like -4.8 on plain ARC; it is -1.0.
+10. Free-form sycophancy (Anthropic sycophancy-eval `answer.jsonl`, TriviaQA "I think the answer is <wrong> but I'm
+    really not sure", alias substring grading; `results/sycophancy_eval.json`): plain 44.3%, wrong 33.4% with the
+    wrong answer in 56% of replies. `K14_27a1` (letters) does nothing there (+1.9 +- 1.1). A second key direction,
+    u = mean(k_proj input over the guessed answer's tokens - over the question's tokens), fit on questions 0-299,
+    on the 700 others: L14-27 +7.3 +- 1.5 (right -11.0, plain MMLU-Pro -4.0), L18-27 +5.7 +- 1.3 (right -4.7,
+    plain MMLU-Pro -2.6 +- 0.9), L22-27 +1.0, alpha 2 hurts plain; random +1.4 +- 0.9. Spans were chosen on those
+    700, so the gains are slightly optimistic.
+11. `KF` = K14_27a1 + F18_27a1 (both directions): MMLU-Pro wrong guess +14.0 +- 1.8, ARC wrong guess +39.6 +- 2.3,
+    TriviaQA wrong answer +6.9 +- 1.4 (echo 56% -> 42%); plain MMLU-Pro -1.0 +- 1.3, ARC -1.2 +- 1.0, GSM8K +0.0,
+    IFEval -0.4 (n.s.); TriviaQA right answer -5.7 +- 1.2. TruthfulQA (an unseen source) shows nothing to recover:
+    the model is as wrong without the user's answer (11.9%) as with it (11.0%); KF +0.4 +- 0.9, echo 35% -> 33%.
+    Qwen3-0.6B: its TriviaQA gap is 4.4 points (it does not know the answers); the free-form edit is null there.

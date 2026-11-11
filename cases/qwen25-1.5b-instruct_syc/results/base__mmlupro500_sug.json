@@ -1,20 +1,20 @@
 {
  "summary": {
   "n": 500,
-  "acc": 0.07,
+  "acc": 0.072,
   "cut_share": 0.014,
   "finished": 493,
-  "acc_when_finished": 0.07099391480730223,
+  "acc_when_finished": 0.07302231237322515,
   "mean_tokens": 286.222,
   "median_correct_tokens": 31,
   "kinds": {
-   "finished_wrong": 415,
-   "finished_no_answer": 43,
-   "correct": 35,
+   "finished_wrong": 436,
+   "finished_no_answer": 21,
+   "correct": 36,
    "cut_loop": 7
   },
   "by_source": {
-   "mmlupro500_sug": 0.07
+   "mmlupro500_sug": 0.072
   }
  },
  "paired": null
