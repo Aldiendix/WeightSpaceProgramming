@@ -135,6 +135,8 @@ given), "are you sure?" (share of correct answers given up):
   works through ~670 tokens of reasoning, so "reasoning first" alone does not block it.
 - Qwen3.5-0.8B (Gated DeltaNet): keys of the full-attention layers do nothing; adding the key rows of the linear
   layers' in_proj_qkv moves P(guess) at a forced answer (0.77 -> 0.56) but not generation (+3.9 +- 3.9 DEV128).
+- The free-form answer-span direction (+5.7 on Qwen2.5) does not carry over: LFM2.5 has no pull left on held-out
+  TriviaQA (37.1 vs 35.9), Qwen3-4B-Instruct-2507 gets worse (-1.3 to -6.3). The letter key edit is the robust part.
 
 ## Tried and not confirmed (do not repeat without a new idea)
 Paired gains on DEV128 / HOLDOUT256 after the loop edit (2B unless noted).

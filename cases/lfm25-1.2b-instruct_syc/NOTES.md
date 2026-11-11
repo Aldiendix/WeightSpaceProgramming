@@ -15,3 +15,6 @@ Sycophancy: a user's wrong guess pulls the answer to it. Method as in `qwen25-1.
    GSM8K +0.4, IFEval -0.2 (n.s.), plain ARC -3.0 +- 1.1 (a small cost). Right guess 81.6 -> 62.8 (-18.8; it stops
    copying, still far above plain 40.4). Free-form TriviaQA: 38.0 -> 39.0 (the letter direction does not reach it,
    as in Qwen2.5).
+5. Free-form answer-span key direction (as Qwen2.5's F18_27; fit TriviaQA 0-299, test the other 700): the held-out
+   questions show almost no pull (plain 37.1%, wrong answer given 35.9%); F10_15 / F8_15 / F5_15 +0.4 / +0.7 / -0.4,
+   random +0.1. Nothing to recover there.
