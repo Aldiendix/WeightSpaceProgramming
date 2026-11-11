@@ -133,3 +133,27 @@ def test_set_rows_and_cols_write_a_neuron():
                   {"op": "set_cols", "tensor": "d", "cols": [2], "values": [[5.0], [6.0], [7.0]]}], ".")
     assert W["g"][2].tolist() == [1.0, 2.0, 3.0] and W["g"][[0, 1, 3]].abs().sum() == 0
     assert W["d"][:, 2].tolist() == [5.0, 6.0, 7.0] and W["d"][:, [0, 1, 3]].abs().sum() == 0
+
+
+def test_gate_fires_only_on_positives():
+    import numpy as np
+
+    from wsp import gate
+    rng = np.random.default_rng(0)
+    N = rng.normal(size=(2000, 16)) + 3.0  # ordinary positions (with a common offset, as real activations)
+    P = rng.normal(size=(200, 16)) + 3.0
+    P[:, 0] += 8.0  # the positives differ along one coordinate
+    w = np.zeros(16)
+    w[5] = 1.0
+    u = gate.build(P, N, w)
+    assert u["recall"] > 0.95 and u["neg_fire"] == 0
+
+    def out(X):  # the unit's contribution to the residual
+        return (gate.silu(X @ u["gate"]) * (X @ u["up"]))[:, None] * u["down"][None]
+    assert np.abs(out(N)).max() < 0.05 and abs(out(P)[:, 5].mean() - 1.0) < 0.05
+
+
+def test_think_override_switches_template_only():
+    from wsp.case import split_model
+    name, samp = split_model("base@think=0")
+    assert name == "base" and samp == {"think": 0.0}

@@ -16,13 +16,17 @@ def _is_multimodal(model):
 
 def generate(model, items, profile, n=1, out=None, salt="s0", gpu_mem=0.90, max_tokens=None, sampling=None):
     """sampling: overrides of the profile's sampling (decoding baselines), plus "hint": a data.HINTS name,
-    "penalize": words joined by "+" whose first tokens get logit bias "bias" (default -2)."""
+    "penalize": words joined by "+" whose first tokens get logit bias "bias" (default -2), "think": 0 / 1 to switch
+    the chat template's thinking mode while keeping the profile's sampling and token limit."""
     from vllm import LLM, SamplingParams  # noqa: PLC0415
 
     sampling = dict(sampling or {})
     hint = sampling.pop("hint", None)
     penalize = sampling.pop("penalize", None)  # "Wait+Alternatively": logit bias on the words' first tokens
     bias = sampling.pop("bias", -2.0)
+    think = sampling.pop("think", None)
+    if think is not None:  # template switch only
+        profile = dict(profile, thinking=bool(think))
     samp = dict(profile["sampling"], **({"max_tokens": max_tokens} if max_tokens else {}), **(sampling or {}))
     # an edited model dir symlinks the base files, so it has the base's tokenizer and chat template
     from transformers import AutoTokenizer  # noqa: PLC0415
