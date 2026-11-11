@@ -12,6 +12,8 @@ Operations ("u", "cols", "rows" are inline lists or "file.npz#key" relative to t
   dir_ablate  side "out" (W writes into the residual stream, e.g. down_proj): W -= alpha * u (u^T W)[:, cols]
               side "in"  (W reads from it, e.g. up_proj):                      W -= alpha * (W u)[rows] u^T
   scale_cols  W[:, cols] *= factor        scale_rows  W[rows, :] *= factor
+  set_rows    W[rows, :] = values (len(rows) x in)   set_cols  W[:, cols] = values (out x len(cols))
+              ("write a neuron": e.g. the gate_proj / up_proj rows and the down_proj column of one MLP unit)
   low_rank    W = best rank-k approximation of W (SVD), k = max(1, round(keep * min(W.shape)))  (LASER)
 The manifest also records what limit checks need (changed entries, relative change, base norm per tensor); the
 limits themselves are in rules.json and are checked by the subnet project, not here.
@@ -141,6 +143,15 @@ def apply_ops(tensors, ops, base_dir):
             dim = 1 if op["op"] == "scale_cols" else 0
             sel = torch.as_tensor(_resolve(op["cols" if dim else "rows"], base_dir), dtype=torch.long)
             W.index_copy_(dim, sel, W.index_select(dim, sel) * float(op["factor"]))
+        elif op["op"] in ("set_rows", "set_cols"):
+            dim = 1 if op["op"] == "set_cols" else 0
+            sel = torch.as_tensor(_resolve(op["cols" if dim else "rows"], base_dir), dtype=torch.long).flatten()
+            val = torch.tensor(_resolve(op["values"], base_dir), dtype=torch.float32)
+            val = val.reshape(len(sel), -1) if dim == 0 else val.reshape(-1, len(sel))
+            if dim == 0:
+                W[sel] = val
+            else:
+                W[:, sel] = val
         elif op["op"] == "low_rank":
             U, S, Vh = torch.linalg.svd(W, full_matrices=False)
             k = max(1, round(float(op["keep"]) * min(W.shape)))
@@ -256,7 +267,7 @@ def spec_size(spec_path):
     spec_path = Path(spec_path)
     spec, seen, payload = json.load(open(spec_path)), set(), 0
     for op in spec["ops"]:
-        for k in ("u", "cols", "rows"):
+        for k in ("u", "cols", "rows", "values"):
             v = op.get(k)
             if v is None or json.dumps(v) in seen:
                 continue

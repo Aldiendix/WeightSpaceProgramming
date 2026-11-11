@@ -1,0 +1,24 @@
+{
+ "summary": {
+  "n": 2000,
+  "acc": 0.6075,
+  "cut_share": 0.285,
+  "samples": 4,
+  "pass_at_k": 0.796,
+  "finished": 1430,
+  "acc_when_finished": 0.8496503496503497,
+  "mean_tokens": 16929.1315,
+  "median_correct_tokens": 9116,
+  "kinds": {
+   "finished_wrong": 205,
+   "correct": 1215,
+   "cut_loop": 556,
+   "cut_other": 14,
+   "finished_no_answer": 10
+  },
+  "by_source": {
+   "gsm8k500": 0.6075
+  }
+ },
+ "paired": null
+}

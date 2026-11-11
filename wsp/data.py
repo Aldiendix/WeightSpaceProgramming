@@ -70,6 +70,25 @@ def _arc(n=500, seed=0):  # ARC-Challenge test: another multiple-choice source (
     return out
 
 
+def gsmplus_rows(part, kind="distract", seed=0):
+    """GSM-Plus "distraction insertion": a GSM8K test problem with an irrelevant sentence (with numbers) added;
+    kind "seed" is the same original problem under the same id, so the two pair. Parts of the 1,319 problems:
+    "test" 500 (the benchmark), "dev" 300 (choosing an edit), "fit" the rest (fitting directions)."""
+    d = [r for r in _hf("qintongli/GSM-Plus", split="test") if r["perturbation_type"] == "distraction insertion"]
+    order = list(range(len(d)))
+    test = set(random.Random(seed).sample(order, 500))
+    rest = [i for i in order if i not in test]
+    random.Random(seed + 1).shuffle(rest)
+    idx = {"test": sorted(test), "dev": sorted(rest[:300]), "fit": sorted(rest[300:])}[part]
+    out = []
+    for i in idx:
+        r = d[i]
+        q, a = (r["question"], r["answer"]) if kind == "distract" else (r["seed_question"], r["seed_answer"])
+        out.append({"id": f"gsmplus_{i}", "problem": q, "answer": str(a).replace(",", ""),
+                    "seed_problem": r["seed_question"]})
+    return out
+
+
 def _mmlupro(n=500, seed=0):
     d = _hf("TIGER-Lab/MMLU-Pro", split="test")
     return [{"id": f"mmlupro_{d[i]['question_id']}", "problem": d[i]["question"], "answer": d[i]["answer"],
@@ -188,7 +207,12 @@ BENCHMARKS = {
     "mmlupro500_sugok": (lambda: _suggest(_bench("mmlupro500"), right=True), "choice", None),  # ... a right one
     "mmlupro500_sugvar": (lambda: _suggest(_bench("mmlupro500"), variants=True), "choice", None),  # other phrasings
     "arc500": (_arc, "choice", None),
+    "gsmplus500_seed": (lambda: gsmplus_rows("test", "seed"), "math", None),  # the originals of gsmplus500_distract
+    "gsmplus500_distract": (lambda: gsmplus_rows("test"), "math", None),  # + an irrelevant sentence with numbers
+    "gsmplus_dev_seed": (lambda: gsmplus_rows("dev", "seed"), "math", None),
+    "gsmplus_dev_distract": (lambda: gsmplus_rows("dev"), "math", None),
     "arc500_sug": (lambda: _suggest(_bench("arc500")), "choice", None),
+    "arc500_sugok": (lambda: _suggest(_bench("arc500"), right=True), "choice", None),
     "gsm8k500_sug": (lambda: _suggest(_bench("gsm8k500")), "math", None),  # transfer to another domain
 }
 
@@ -340,6 +364,7 @@ HINTS = {
     "stepwise": "Reason step by step before giving the final answer.",
     "english": "Think in English, whatever the language of the question.",
     "check": "Before answering, re-read the request and make sure the answer satisfies every instruction in it.",
+    "irrelevant": "The problem may contain irrelevant information; use only what the question needs.",
 }
 
 

@@ -1,0 +1,24 @@
+{
+ "summary": {
+  "n": 2000,
+  "acc": 0.4505,
+  "cut_share": 0.5195,
+  "samples": 4,
+  "pass_at_k": 0.626,
+  "finished": 961,
+  "acc_when_finished": 0.931321540062435,
+  "mean_tokens": 24400.3045,
+  "median_correct_tokens": 14868,
+  "kinds": {
+   "correct": 901,
+   "cut_loop": 877,
+   "cut_other": 156,
+   "finished_no_answer": 13,
+   "finished_wrong": 53
+  },
+  "by_source": {
+   "math500": 0.4505
+  }
+ },
+ "paired": null
+}

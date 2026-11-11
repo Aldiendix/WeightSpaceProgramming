@@ -140,6 +140,15 @@ given), "are you sure?" (share of correct answers given up):
 
 ## Tried and not confirmed (do not repeat without a new idea)
 Paired gains on DEV128 / HOLDOUT256 after the loop edit (2B unless noted).
+- **Effective temperature and structural loop breakers on the 0.8B thinking model**: final-norm x0.7-0.8 (T ~0.75;
+  norms are not editable anyway) +0.4 / +1.4 on DEV128 x4: loops become long non-repeating reasoning, still cut.
+  Gated-DeltaNet decay, key-input and MLP "repeat vs first occurrence" directions: no selective effect on real loops.
+- **Distracting information in math problems** (GSM-Plus "distraction insertion", an irrelevant sentence with numbers;
+  paired with the original GSM8K problems): a large drop in newer small models (LFM2.5-1.2B 79.6 -> 59.8, Qwen3-1.7B
+  no-think 83.8 -> 66.8, Qwen3.5-2B -13.2; Qwen3-4B-2507 -3.4), and the failures are genuine use of the distractor.
+  But the prompt "the problem may contain irrelevant information" changes nothing (LFM +0.0, Qwen3-1.7B +2.7 +- 2.4
+  on 300 dev problems), and a key edit on the inserted clause (fit on 498 other problems) hurts (-1 to -11). Unlike
+  a user's note, a distractor has no surface mark: judging relevance is reasoning, not a removable copy.
 - **Conclude once the answer is found** (contrast `conclude`): DEV +1.6, HOLDOUT +0.8 ± 2.0. The direction is stable
   but the edit is not selective: it lowers the closing continuation too. After loop removal the 2B's remaining cut
   answers (18% at 32k tokens) are long non-repetitive reasoning, not a single removable behavior.

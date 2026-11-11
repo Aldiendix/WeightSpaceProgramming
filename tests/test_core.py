@@ -122,3 +122,14 @@ def test_base_run_of_the_same_variant(tmp_path, monkeypatch):
     for tag, ok in (("mmlupro500", True), ("mmlupro500_sug", False)):
         (tmp_path / "c" / f"base__{tag}.jsonl").write_text(json.dumps(row | {"correct": ok}) + "\n")
     assert case._base_run_for("c", {("q1", 0)}, "mmlupro500_sug")[0]["correct"] is False
+
+
+def test_set_rows_and_cols_write_a_neuron():
+    import torch
+
+    from wsp.edits import apply_ops
+    W = {"g": torch.zeros(4, 3), "d": torch.zeros(3, 4)}
+    apply_ops(W, [{"op": "set_rows", "tensor": "g", "rows": [2], "values": [[1.0, 2.0, 3.0]]},
+                  {"op": "set_cols", "tensor": "d", "cols": [2], "values": [[5.0], [6.0], [7.0]]}], ".")
+    assert W["g"][2].tolist() == [1.0, 2.0, 3.0] and W["g"][[0, 1, 3]].abs().sum() == 0
+    assert W["d"][:, 2].tolist() == [5.0, 6.0, 7.0] and W["d"][:, [0, 1, 3]].abs().sum() == 0

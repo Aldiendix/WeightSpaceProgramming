@@ -39,6 +39,12 @@ PROFILES = {
     "lfm25-1.2b-instruct": ("LiquidAI/LFM2.5-1.2B-Instruct", "b9d816ab510f9a28dca37cb182e9da8b0226e13c", False,
                             {"temperature": 0.1, "top_k": 50, "top_p": 0.1, "repetition_penalty": 1.05,
                              "max_tokens": 8192}),  # model card
+    "lfm2-2.6b": ("LiquidAI/LFM2-2.6B", "36ed799f7024ef169ba92ffe184821835e15cc66", False,
+                  {"temperature": 0.3, "min_p": 0.15, "repetition_penalty": 1.05, "max_tokens": 8192}),  # model card
+    "granite40-micro": ("ibm-granite/granite-4.0-micro", "56111ae135df9c53a78c99028e7bc24035a9e979", False, INSTRUCT),
+    "smollm3-3b-nothink": ("HuggingFaceTB/SmolLM3-3B", "a07cc9a04f16550a088caea529712d1d335b0ac1", False,
+                           dict(R1_STYLE, max_tokens=8192)),
+    "olmo3-7b-instruct": ("allenai/Olmo-3-7B-Instruct", "6e5971d9eba42665f5bd5a0fcf047f299ce1dccc", False, INSTRUCT),
     "qwen25-1.5b-instruct": ("Qwen/Qwen2.5-1.5B-Instruct", "989aa7980e4cf806f80c7fef2b1adb7bc71aa306", False, INSTRUCT),
     "smollm2-1.7b-instruct": ("HuggingFaceTB/SmolLM2-1.7B-Instruct", "31b70e2e869a7173562077fd711b654946d38674", False,
                               dict(INSTRUCT, max_tokens=4096)),  # 8k context

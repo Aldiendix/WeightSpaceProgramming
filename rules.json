@@ -33,7 +33,9 @@
   "ops": [
    "dir_ablate",
    "scale_cols",
-   "scale_rows"
+   "scale_rows",
+   "set_rows",
+   "set_cols"
   ],
   "payload": "bytes of every distinct array the own ops carry (wsp.edits.spec_size): the information budget, the main guard against importing outside weights",
   "relative_change": "per tensor: manifest relative_change_vs_parent; global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base",

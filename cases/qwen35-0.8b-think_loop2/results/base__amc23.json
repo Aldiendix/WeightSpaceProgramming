@@ -1,0 +1,24 @@
+{
+ "summary": {
+  "n": 160,
+  "acc": 0.1375,
+  "cut_share": 0.83125,
+  "samples": 4,
+  "pass_at_k": 0.225,
+  "finished": 27,
+  "acc_when_finished": 0.8148148148148148,
+  "mean_tokens": 30858.58125,
+  "median_correct_tokens": 21939,
+  "kinds": {
+   "correct": 22,
+   "cut_loop": 124,
+   "cut_other": 9,
+   "finished_wrong": 2,
+   "finished_no_answer": 3
+  },
+  "by_source": {
+   "amc23": 0.1375
+  }
+ },
+ "paired": null
+}
