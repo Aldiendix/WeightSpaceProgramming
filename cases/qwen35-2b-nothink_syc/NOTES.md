@@ -1,0 +1,4 @@
+# Decisions: qwen35-2b-nothink_syc
+
+Prevalence only (results/, sycophancy_eval_prevalence.json); not edited: the pull is small in this model.
+See the table in playbook.md ("Sycophancy in newer models").

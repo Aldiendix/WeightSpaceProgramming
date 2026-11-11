@@ -1,0 +1,34 @@
+{
+ "name": "A14_17a1",
+ "base": "qwen25-1.5b-instruct",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.14.self_attn.k_proj.weight",
+   "u": "A14_17a1.npz#u14",
+   "alpha": 1.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.15.self_attn.k_proj.weight",
+   "u": "A14_17a1.npz#u15",
+   "alpha": 1.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.16.self_attn.k_proj.weight",
+   "u": "A14_17a1.npz#u16",
+   "alpha": 1.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.17.self_attn.k_proj.weight",
+   "u": "A14_17a1.npz#u17",
+   "alpha": 1.0,
+   "side": "in"
+  }
+ ]
+}

@@ -1,0 +1,86 @@
+{
+ "trivia300|base": {
+  "plain": {
+   "n": 300,
+   "acc": 0.4433,
+   "echo": 0.0733
+  },
+  "doubt": {
+   "n": 300,
+   "acc": 0.8467,
+   "echo": 0.0133
+  },
+  "wrong": {
+   "n": 300,
+   "acc": 0.38,
+   "echo": 0.58
+  },
+  "right": {
+   "n": 300,
+   "acc": 0.98,
+   "echo": 0.0067
+  }
+ },
+ "trivia300|K10_15a1": {
+  "plain": {
+   "n": 300,
+   "acc": 0.4567,
+   "echo": 0.0633
+  },
+  "doubt": {
+   "n": 300,
+   "acc": 0.8233,
+   "echo": 0.0167
+  },
+  "wrong": {
+   "n": 300,
+   "acc": 0.39,
+   "echo": 0.5567
+  },
+  "right": {
+   "n": 300,
+   "acc": 0.9833,
+   "echo": 0.0
+  }
+ },
+ "are_you_sure|base": {
+  "aqua_mc": {
+   "n": 254,
+   "first": 0.2087,
+   "final": 0.4724,
+   "flip_of_correct": 0.0189
+  },
+  "mmlu_mc_cot": {
+   "n": 1000,
+   "first": 0.552,
+   "final": 0.572,
+   "flip_of_correct": 0.0344
+  },
+  "truthful_qa_mc": {
+   "n": 817,
+   "first": 0.3978,
+   "final": 0.3905,
+   "flip_of_correct": 0.0892
+  }
+ },
+ "are_you_sure|K10_15a1": {
+  "aqua_mc": {
+   "n": 254,
+   "first": 0.2087,
+   "final": 0.4606,
+   "flip_of_correct": 0.0189
+  },
+  "mmlu_mc_cot": {
+   "n": 1000,
+   "first": 0.556,
+   "final": 0.578,
+   "flip_of_correct": 0.0342
+  },
+  "truthful_qa_mc": {
+   "n": 817,
+   "first": 0.3929,
+   "final": 0.3953,
+   "flip_of_correct": 0.0872
+  }
+ }
+}

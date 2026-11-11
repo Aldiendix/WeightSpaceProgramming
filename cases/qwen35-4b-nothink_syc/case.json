@@ -1,0 +1,12 @@
+{
+ "profile": "qwen35-4b-nothink",
+ "contrast": "sycophancy",
+ "subsets": {
+  "dev128": "dev:128"
+ },
+ "frozen": null,
+ "parent": null,
+ "practice": [
+  "mmlupro_sug"
+ ]
+}

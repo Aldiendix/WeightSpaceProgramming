@@ -1,0 +1,27 @@
+{
+ "name": "RANDK10_15a1",
+ "base": "lfm25-1.2b-instruct",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.10.self_attn.k_proj.weight",
+   "u": "RANDK10_15a1.npz#u10",
+   "alpha": 1.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.12.self_attn.k_proj.weight",
+   "u": "RANDK10_15a1.npz#u12",
+   "alpha": 1.0,
+   "side": "in"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.14.self_attn.k_proj.weight",
+   "u": "RANDK10_15a1.npz#u14",
+   "alpha": 1.0,
+   "side": "in"
+  }
+ ]
+}

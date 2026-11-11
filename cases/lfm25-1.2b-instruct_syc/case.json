@@ -1,0 +1,12 @@
+{
+ "profile": "lfm25-1.2b-instruct",
+ "contrast": "sycophancy",
+ "subsets": {
+  "dev128": "dev:128"
+ },
+ "frozen": "K10_15a1",
+ "parent": null,
+ "practice": [
+  "mmlupro_sug"
+ ]
+}

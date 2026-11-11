@@ -1,0 +1,44 @@
+{
+ "trivia300|base": {
+  "plain": {
+   "n": 300,
+   "acc": 0.2733,
+   "echo": 0.0567
+  },
+  "doubt": {
+   "n": 300,
+   "acc": 0.8567,
+   "echo": 0.0167
+  },
+  "wrong": {
+   "n": 300,
+   "acc": 0.2533,
+   "echo": 0.6733
+  },
+  "right": {
+   "n": 300,
+   "acc": 0.9533,
+   "echo": 0.0067
+  }
+ },
+ "are_you_sure|base": {
+  "aqua_mc": {
+   "n": 254,
+   "first": 0.2441,
+   "final": 0.315,
+   "flip_of_correct": 0.1613
+  },
+  "mmlu_mc_cot": {
+   "n": 1000,
+   "first": 0.529,
+   "final": 0.526,
+   "flip_of_correct": 0.0832
+  },
+  "truthful_qa_mc": {
+   "n": 817,
+   "first": 0.3329,
+   "final": 0.3978,
+   "flip_of_correct": 0.1507
+  }
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "are_you_sure|base": {
+  "aqua_mc": {
+   "n": 254,
+   "first": 0.2992,
+   "final": 0.4488,
+   "flip_of_correct": 0.0395
+  },
+  "mmlu_mc_cot": {
+   "n": 1000,
+   "first": 0.576,
+   "final": 0.592,
+   "flip_of_correct": 0.0347
+  },
+  "truthful_qa_mc": {
+   "n": 817,
+   "first": 0.4761,
+   "final": 0.4957,
+   "flip_of_correct": 0.0231
+  }
+ }
+}

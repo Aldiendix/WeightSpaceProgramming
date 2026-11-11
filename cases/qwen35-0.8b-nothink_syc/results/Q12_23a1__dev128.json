@@ -1,0 +1,39 @@
+{
+ "summary": {
+  "n": 128,
+  "acc": 0.3125,
+  "cut_share": 0.078125,
+  "finished": 118,
+  "acc_when_finished": 0.3220338983050847,
+  "mean_tokens": 2263.90625,
+  "median_correct_tokens": 864,
+  "kinds": {
+   "cut_other": 8,
+   "correct": 40,
+   "finished_wrong": 79,
+   "finished_no_answer": 1
+  },
+  "by_source": {
+   "mmlupro_sug": 0.3125
+  }
+ },
+ "paired": {
+  "n": 128,
+  "problems": 128,
+  "base_acc": 0.2734375,
+  "edit_acc": 0.3125,
+  "gain": 0.0390625,
+  "se": 0.0390625,
+  "rescues": 15,
+  "losses": 10,
+  "base_cut": 0.140625,
+  "edit_cut": 0.078125,
+  "by_source": {
+   "mmlupro_sug": {
+    "n": 128,
+    "base": 0.2734375,
+    "edit": 0.3125
+   }
+  }
+ }
+}

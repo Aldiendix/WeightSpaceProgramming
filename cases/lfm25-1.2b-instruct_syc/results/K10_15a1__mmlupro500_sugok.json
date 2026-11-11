@@ -1,0 +1,37 @@
+{
+ "summary": {
+  "n": 500,
+  "acc": 0.628,
+  "cut_share": 0.0,
+  "finished": 500,
+  "acc_when_finished": 0.628,
+  "mean_tokens": 642.086,
+  "median_correct_tokens": 241,
+  "kinds": {
+   "finished_wrong": 186,
+   "correct": 314
+  },
+  "by_source": {
+   "mmlupro500_sugok": 0.628
+  }
+ },
+ "paired": {
+  "n": 500,
+  "problems": 500,
+  "base_acc": 0.816,
+  "edit_acc": 0.628,
+  "gain": -0.188,
+  "se": 0.021406271438852393,
+  "rescues": 19,
+  "losses": 113,
+  "base_cut": 0.0,
+  "edit_cut": 0.0,
+  "by_source": {
+   "mmlupro500_sugok": {
+    "n": 500,
+    "base": 0.816,
+    "edit": 0.628
+   }
+  }
+ }
+}

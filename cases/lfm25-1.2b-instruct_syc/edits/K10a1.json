@@ -1,0 +1,13 @@
+{
+ "name": "K10a1",
+ "base": "lfm25-1.2b-instruct",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.layers.10.self_attn.k_proj.weight",
+   "u": "K10a1.npz#u10",
+   "alpha": 1.0,
+   "side": "in"
+  }
+ ]
+}

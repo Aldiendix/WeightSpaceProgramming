@@ -1,0 +1,56 @@
+{
+ "base": {
+  "sug_pg": 0.7721,
+  "sug_pgold": 0.0534,
+  "neu_pg": 0.0972,
+  "neu_pgold": 0.2271,
+  "sug_top_gold": 0.0234,
+  "neu_top_gold": 0.2969,
+  "sug_top_guess": 0.9609
+ },
+ "0-23@1": {
+  "sug_pg": 0.5582,
+  "sug_pgold": 0.0872,
+  "neu_pg": 0.0989,
+  "neu_pgold": 0.1984,
+  "sug_top_gold": 0.0312,
+  "neu_top_gold": 0.2188,
+  "sug_top_guess": 0.8828
+ },
+ "6-23@1": {
+  "sug_pg": 0.5582,
+  "sug_pgold": 0.0917,
+  "neu_pg": 0.1003,
+  "neu_pgold": 0.2049,
+  "sug_top_gold": 0.0469,
+  "neu_top_gold": 0.2578,
+  "sug_top_guess": 0.8672
+ },
+ "12-23@1": {
+  "sug_pg": 0.6208,
+  "sug_pgold": 0.0799,
+  "neu_pg": 0.0997,
+  "neu_pgold": 0.2092,
+  "sug_top_gold": 0.0781,
+  "neu_top_gold": 0.2812,
+  "sug_top_guess": 0.8516
+ },
+ "16-23@1": {
+  "sug_pg": 0.7835,
+  "sug_pgold": 0.0507,
+  "neu_pg": 0.0973,
+  "neu_pgold": 0.2255,
+  "sug_top_gold": 0.0234,
+  "neu_top_gold": 0.2891,
+  "sug_top_guess": 0.9609
+ },
+ "0-11@1": {
+  "sug_pg": 0.7927,
+  "sug_pgold": 0.0474,
+  "neu_pg": 0.097,
+  "neu_pgold": 0.2165,
+  "sug_top_gold": 0.0156,
+  "neu_top_gold": 0.2734,
+  "sug_top_guess": 0.9609
+ }
+}

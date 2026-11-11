@@ -1,0 +1,39 @@
+{
+ "summary": {
+  "n": 500,
+  "acc": 0.74,
+  "cut_share": 0.002,
+  "finished": 499,
+  "acc_when_finished": 0.7414829659318637,
+  "mean_tokens": 313.25,
+  "median_correct_tokens": 273,
+  "kinds": {
+   "correct": 370,
+   "finished_wrong": 121,
+   "finished_no_answer": 8,
+   "cut_loop": 1
+  },
+  "by_source": {
+   "gsm8k500": 0.74
+  }
+ },
+ "paired": {
+  "n": 500,
+  "problems": 500,
+  "base_acc": 0.702,
+  "edit_acc": 0.74,
+  "gain": 0.038,
+  "se": 0.016542651499601706,
+  "rescues": 44,
+  "losses": 25,
+  "base_cut": 0.0,
+  "edit_cut": 0.002,
+  "by_source": {
+   "gsm8k500": {
+    "n": 500,
+    "base": 0.702,
+    "edit": 0.74
+   }
+  }
+ }
+}

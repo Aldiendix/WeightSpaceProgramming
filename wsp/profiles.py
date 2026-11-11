@@ -18,7 +18,9 @@ PROFILES = {
     "qwen35-0.8b-think": (*QWEN35_08B, True, QWEN35_THINK),
     "qwen35-0.8b-nothink": (*QWEN35_08B, False, QWEN35_NOTHINK),
     "qwen35-2b-think": ("Qwen/Qwen3.5-2B", "15852e8c16360a2fea060d615a32b45270f8a8fc", True, QWEN35_THINK),
+    "qwen35-2b-nothink": ("Qwen/Qwen3.5-2B", "15852e8c16360a2fea060d615a32b45270f8a8fc", False, QWEN35_NOTHINK),
     "qwen35-4b-think": ("Qwen/Qwen3.5-4B", "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a", True, QWEN35_THINK),
+    "qwen35-4b-nothink": ("Qwen/Qwen3.5-4B", "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a", False, QWEN35_NOTHINK),
     "qwen3-0.6b-think": ("Qwen/Qwen3-0.6B", "c1899de289a04d12100db370d81485cdf75e47ca", True, QWEN3_THINK),
     "qwen3-0.6b-nothink": ("Qwen/Qwen3-0.6B", "c1899de289a04d12100db370d81485cdf75e47ca", False, QWEN3_NOTHINK),
     "qwen3-1.7b-nothink": ("Qwen/Qwen3-1.7B", "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e", False, QWEN3_NOTHINK),
@@ -30,8 +32,13 @@ PROFILES = {
                             dict(R1_STYLE, temperature=0.8)),
     "qwen3-4b-thinking-2507": ("Qwen/Qwen3-4B-Thinking-2507", "768f209d9ea81521153ed38c47d515654e938aea", True,
                                QWEN3_THINK),
+    "qwen3-4b-instruct-2507": ("Qwen/Qwen3-4B-Instruct-2507", "cdbee75f17c01a7cc42f958dc650907174af0554", False,
+                              dict(QWEN3_NOTHINK, max_tokens=8192)),
     "nemotron-1.5b": ("nvidia/OpenReasoning-Nemotron-1.5B", "f7e9c457f57387ce4eefa856795a5afa0622ec56", True, R1_STYLE),
     "lfm25-1.2b-thinking": ("LiquidAI/LFM2.5-1.2B-Thinking", "fa4681e33c27d2861d1eacc9d29ccb68840344a0", True, R1_STYLE),
+    "lfm25-1.2b-instruct": ("LiquidAI/LFM2.5-1.2B-Instruct", "b9d816ab510f9a28dca37cb182e9da8b0226e13c", False,
+                            {"temperature": 0.1, "top_k": 50, "top_p": 0.1, "repetition_penalty": 1.05,
+                             "max_tokens": 8192}),  # model card
     "qwen25-1.5b-instruct": ("Qwen/Qwen2.5-1.5B-Instruct", "989aa7980e4cf806f80c7fef2b1adb7bc71aa306", False, INSTRUCT),
     "smollm2-1.7b-instruct": ("HuggingFaceTB/SmolLM2-1.7B-Instruct", "31b70e2e869a7173562077fd711b654946d38674", False,
                               dict(INSTRUCT, max_tokens=4096)),  # 8k context
