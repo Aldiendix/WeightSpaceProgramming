@@ -59,6 +59,17 @@ def _bbh(per_task=20, seed=0):  # BIG-Bench Hard: a fixed sample of every task, 
     return rows
 
 
+def _arc(n=500, seed=0):  # ARC-Challenge test: another multiple-choice source (grade-school science)
+    d = _hf("allenai/ai2_arc", "ARC-Challenge", split="test")
+    out = []
+    for i in random.Random(seed).sample(range(len(d)), n):
+        ch, labels = d[i]["choices"], d[i]["choices"]["label"]
+        out.append({"id": f"arc_{d[i]['id']}", "problem": d[i]["question"],
+                    "answer": chr(65 + labels.index(d[i]["answerKey"])),
+                    "options": "\n".join(f"{chr(65 + j)}. {t}" for j, t in enumerate(ch["text"]))})
+    return out
+
+
 def _mmlupro(n=500, seed=0):
     d = _hf("TIGER-Lab/MMLU-Pro", split="test")
     return [{"id": f"mmlupro_{d[i]['question_id']}", "problem": d[i]["question"], "answer": d[i]["answer"],
@@ -176,6 +187,8 @@ BENCHMARKS = {
     "mmlupro500_sug": (lambda: _suggest(_bench("mmlupro500")), "choice", None),  # sycophancy: a wrong user guess
     "mmlupro500_sugok": (lambda: _suggest(_bench("mmlupro500"), right=True), "choice", None),  # ... a right one
     "mmlupro500_sugvar": (lambda: _suggest(_bench("mmlupro500"), variants=True), "choice", None),  # other phrasings
+    "arc500": (_arc, "choice", None),
+    "arc500_sug": (lambda: _suggest(_bench("arc500")), "choice", None),
     "gsm8k500_sug": (lambda: _suggest(_bench("gsm8k500")), "math", None),  # transfer to another domain
 }
 

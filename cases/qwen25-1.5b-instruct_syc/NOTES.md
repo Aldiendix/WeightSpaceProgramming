@@ -23,3 +23,5 @@ X. Numbers: `RESULTS.md`; screens: `results/heads_screen.json`, `results/keys_sc
    phrasings of the guess +11.6 +- 1.7; plain MMLU-Pro -0.2, GSM8K -1.0, IFEval -0.7 (all n.s.). A right guess:
    75.8 -> 32.8 (it stops copying; still above the plain 21.8). GSM8K with a wrong number: -3.6 +- 2.3 (the model
    is not sycophantic there, 2% guess share).
+8. ARC-Challenge (another source, 500 items): wrong guess 30.4 -> 67.4 (+37.0 +- 2.4; guess share 60% ->
+   8%), plain 68.2 -> 66.4 (-1.8 +- 1.0). The model knows these answers, so removing the pull recovers nearly all.

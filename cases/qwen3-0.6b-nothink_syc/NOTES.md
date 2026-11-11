@@ -10,3 +10,4 @@ Same behavior and method as `qwen25-1.5b-instruct_syc` (read that first). Number
    Qwen2.5. DEV128 x 2: K14_27a1 +6.6 +- 2.2 (guess share 67% -> 50%), K0_27 +2.7, random -0.8 +- 1.2.
 4. **Frozen: `K14_27a1`**. Benchmarks: wrong guess +5.0 +- 1.5, held-out phrasings +3.8 +- 1.4; plain MMLU-Pro
    -3.0 +- 1.9, GSM8K +3.2 +- 1.7, IFEval -0.4 +- 1.5; right guess -15.6 (81.4 -> 65.8).
+5. ARC-Challenge: wrong guess 26.2 -> 37.0 (+10.8 +- 1.8), plain 57.2 -> 58.8 (+1.6 +- 1.8).

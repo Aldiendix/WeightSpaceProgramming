@@ -1,0 +1,20 @@
+{
+ "summary": {
+  "n": 500,
+  "acc": 0.572,
+  "cut_share": 0.0,
+  "finished": 500,
+  "acc_when_finished": 0.572,
+  "mean_tokens": 128.076,
+  "median_correct_tokens": 111,
+  "kinds": {
+   "finished_wrong": 205,
+   "correct": 286,
+   "finished_no_answer": 9
+  },
+  "by_source": {
+   "arc500": 0.572
+  }
+ },
+ "paired": null
+}
