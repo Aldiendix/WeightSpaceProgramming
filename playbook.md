@@ -138,6 +138,16 @@ given), "are you sure?" (share of correct answers given up):
 - The free-form answer-span direction (+5.7 on Qwen2.5) does not carry over: LFM2.5 has no pull left on held-out
   TriviaQA (37.1 vs 35.9), Qwen3-4B-Instruct-2507 gets worse (-1.3 to -6.3). The letter key edit is the robust part.
 
+## Measure the behaviour ceiling before editing
+An edit cannot add ability; it can at most make the model behave the best way the same weights already can. Measure
+that first, without editing (`python -m wsp.case run <case> base@hint=<name> <set>` and other sampling overrides):
+it bounds every edit and tells which benchmarks are worth an edit at all.
+- Qwen3.5-2B thinking (after the loop edit): no hint or temperature helps, finished math answers are ~99% right and
+  misses are hard problems cut at 32k (long reasoning, not loops). Merging with its Base checkpoint hurts both ways
+  (lam -0.1: MATH500 -8.0). SAE features of doubt and backtracking (Qwen-Scope) are more active early in traces that
+  end cut, but removing them costs MATH500 4.5-7.5 points: symptoms of hard problems, not habits. Qwen3.5-4B thinking
+  is near saturated (AMC 95.6, GSM8K 96.0); LFM2.5-1.2B-Thinking never truncates.
+
 ## Tried and not confirmed (do not repeat without a new idea)
 Paired gains on DEV128 / HOLDOUT256 after the loop edit (2B unless noted).
 - **Effective temperature and structural loop breakers on the 0.8B thinking model**: final-norm x0.7-0.8 (T ~0.75;

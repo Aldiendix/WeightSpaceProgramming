@@ -1,0 +1,77 @@
+{
+ "name": "SAEC",
+ "base": "qwen35-2b-think",
+ "parent": "../parent/L15L19_k64_a6.json",
+ "ops": [
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.4.mlp.down_proj.weight",
+   "u": "SAEC.npz#f15519",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.4.mlp.down_proj.weight",
+   "u": "SAEC.npz#f17397",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.5.mlp.down_proj.weight",
+   "u": "SAEC.npz#f15519",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.5.mlp.down_proj.weight",
+   "u": "SAEC.npz#f17397",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.6.mlp.down_proj.weight",
+   "u": "SAEC.npz#f15519",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.6.mlp.down_proj.weight",
+   "u": "SAEC.npz#f17397",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.7.mlp.down_proj.weight",
+   "u": "SAEC.npz#f15519",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.7.mlp.down_proj.weight",
+   "u": "SAEC.npz#f17397",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.8.mlp.down_proj.weight",
+   "u": "SAEC.npz#f15519",
+   "alpha": 1.0,
+   "side": "out"
+  },
+  {
+   "op": "dir_ablate",
+   "tensor": "model.language_model.layers.8.mlp.down_proj.weight",
+   "u": "SAEC.npz#f17397",
+   "alpha": 1.0,
+   "side": "out"
+  }
+ ]
+}

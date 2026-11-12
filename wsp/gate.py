@@ -66,3 +66,15 @@ def save(path, unit):
     """Write gate / up / down of a build() result to an npz in the layouts ops() expects."""
     np.savez(path, gate=unit["gate"][None].astype(np.float32), up=unit["up"][None].astype(np.float32),
              down=unit["down"][:, None].astype(np.float32))
+
+
+def always_on(X, write, g=8.0, k=1.0):
+    """A unit that adds ~write at every position: a constant steering vector (activation addition) in weights, since
+    the MLP has no bias. gate = g m and up = k m with m . x ~ 1 over the rows of X (positions of the kind it will
+    see), so act ~ silu(g) k everywhere; down = write / mean act. -> dict(gate, up, down, m, act_cv)."""
+    X = np.asarray(X, np.float64)
+    m = constant_direction(X)
+    pre, mx = g * (X @ m), X @ m
+    act = silu(pre) * k * mx
+    return {"gate": g * m, "up": k * m, "down": np.asarray(write, np.float64) / act.mean(), "m": m,
+            "act_cv": float(act.std() / act.mean())}
