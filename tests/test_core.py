@@ -157,3 +157,25 @@ def test_think_override_switches_template_only():
     from wsp.case import split_model
     name, samp = split_model("base@think=0")
     assert name == "base" and samp == {"think": 0.0}
+
+
+def test_always_on_unit_adds_a_constant():
+    import numpy as np
+
+    from wsp import gate
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(3000, 32)) * 0.3 + 1.0
+    w = np.arange(32.0)
+    u = gate.always_on(X, w)
+    out = (gate.silu(X @ u["gate"]) * (X @ u["up"]))[:, None] * u["down"][None]
+    assert np.abs(out.mean(0) - w).max() < 0.05 * np.abs(w).max() and u["act_cv"] < 0.15
+
+
+def test_grader_exception_scores_wrong(monkeypatch):
+    from wsp import grade
+
+    def boom(item, answer):
+        raise TimeoutError("regex time limit")
+    monkeypatch.setitem(grade.GRADERS, "ifeval", boom)
+    r = grade.score({"task": "ifeval"}, "</think>answer", "stop", True)
+    assert r["correct"] is False and r["kind"] == "grade_error"

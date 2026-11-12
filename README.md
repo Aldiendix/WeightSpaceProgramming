@@ -80,7 +80,7 @@ Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this
 **Edit.** An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.
 - inheritance: With a parent, the spec says "parent": "parent/edit.json" and stacks on that edit, starting from exactly that model's weights; the parent is not uploaded (it is already published): to build, the subnet places the published chain there (each published edit/ directory under its child's parent/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.
 - editable tensors: 2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters
-- ops: `dir_ablate`, `scale_cols`, `scale_rows`
+- ops: `dir_ablate`, `scale_cols`, `scale_rows`, `set_rows`, `set_cols`
 - payload: bytes of every distinct array the own ops carry (wsp.edits.spec_size): the information budget, the main guard against importing outside weights
 - relative change: per tensor: manifest relative_change_vs_parent; global: sqrt(sum (relative_change_vs_parent * parent_norm)^2) / norm of all editable matrices of the base
 - **limits**: payload bytes <= 4096 KiB, relative change per tensor <= 50%, global relative change <= 20%

@@ -6,7 +6,8 @@ Graders (item["task"]):  math    last \\boxed{} of the final answer, exact match
                          exact   \\boxed{} answer equal to the target after normalization (case, brackets, final period)
                          ifeval  official IFEval checkers (lm-eval), strict prompt level
 The final answer is the text after </think> in thinking mode; an answer whose thinking never closed has none.
-Failure kinds: correct | finished_wrong | finished_no_answer | cut_loop (hit the token limit in a loop) | cut_other.
+Failure kinds: correct | finished_wrong | finished_no_answer | cut_loop (hit the token limit in a loop) | cut_other |
+grade_error (the grader raised on this answer, e.g. a regex time limit in an IFEval checker: scored wrong).
 """
 import re
 
@@ -105,10 +106,16 @@ GRADERS = {"math": _math, "choice": _choice, "exact": _exact, "ifeval": _ifeval}
 def score(item, text, finish_reason, thinking):
     cut = finish_reason == "length"
     closed = (not thinking) or "</think>" in text
-    pred, correct = GRADERS[item.get("task", "math")](item, answer_part(text)) if closed else (None, False)
+    err = False
+    try:
+        pred, correct = GRADERS[item.get("task", "math")](item, answer_part(text)) if closed else (None, False)
+    except Exception:  # noqa: BLE001 - a checker that fails on an answer (e.g. a regex time limit) scores it wrong
+        pred, correct, err = None, False, True
     dup = tail_dup_ratio(text)
     ws_tail = len(text) > 2000 and len(text[-2000:].strip()) < 200
-    if correct:
+    if err:
+        kind = "grade_error"
+    elif correct:
         kind = "correct"
     elif cut:
         kind = "cut_loop" if dup > LOOP_DUP or ws_tail else "cut_other"
