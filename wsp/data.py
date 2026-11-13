@@ -3,11 +3,13 @@
 instruction checkers).
 
 practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits), shipped in
-                  data/practice/ (no test items): gsm8k_train, math_train (math), ifsynth (instruction following),
-                  mmlupro (MMLU-Pro items outside bench:mmlupro500)
+                  data/practice/: gsm8k_train, math_train (math), ifsynth (instruction following), mmlupro
+                  (MMLU-Pro items outside bench:mmlupro500). No practice question is a benchmark question
+                  (data/bench_fingerprints.txt.gz; tests/test_core.py checks it).
 bench:<name>      benchmark test sets, only for frozen evaluations (see BENCHMARKS)
 private:<name>    organizer-only sets from $WSP_PRIVATE_DIR (never in the repo)
 """
+import gzip
 import hashlib
 import json
 import os
@@ -321,13 +323,49 @@ def make_mmlupro_practice(n=1024, seed=1):
     """Write practice:mmlupro (data/practice/mmlupro.jsonl.gz): MMLU-Pro test items outside bench:mmlupro500."""
     taken = {r["id"] for r in _bench("mmlupro500")}
     d = _hf("TIGER-Lab/MMLU-Pro", split="test")
-    pool = [i for i in range(len(d)) if f"mmlupro_{d[i]['question_id']}" not in taken]
+    fps = bench_fingerprints()  # MMLU-Pro repeats questions under other ids
+    pool = [i for i in range(len(d)) if f"mmlupro_{d[i]['question_id']}" not in taken
+            and fingerprint(d[i]["question"]) not in fps]
     rows = [{"id": f"mmlupro_{d[i]['question_id']}", "source": "mmlupro", "task": "choice", "problem": d[i]["question"],
              "answer": d[i]["answer"], "category": d[i]["category"],
              "options": "\n".join(f"{chr(65 + j)}. {o}" for j, o in enumerate(d[i]["options"]))}
             for i in sorted(random.Random(seed).sample(pool, n))]
     write_jsonl(PRACTICE_DIR / "mmlupro.jsonl.gz", rows)
     return rows
+
+
+FINGERPRINTS = REPO / "data" / "bench_fingerprints.txt.gz"
+FINGERPRINT_BENCHES = ("math500", "gsm8k", "amc23", "aime24", "aime25", "mmlupro500", "ifeval")
+
+
+def fingerprint(text):
+    """Identity of a question across sources: sha1 of its lowercased alphanumeric words (ids, options ignored)."""
+    return hashlib.sha1(re.sub(r"[^a-z0-9]+", " ", text.lower()).strip().encode()).hexdigest()[:16]
+
+
+def bench_fingerprints():
+    with gzip.open(FINGERPRINTS, "rt") as f:
+        return set(f.read().split())
+
+
+def make_fingerprints():
+    """Write data/bench_fingerprints.txt.gz from FINGERPRINT_BENCHES (downloads them)."""
+    fps = sorted({fingerprint(r["problem"]) for b in FINGERPRINT_BENCHES for r in _bench(b)})
+    with gzip.open(FINGERPRINTS, "wt") as f:
+        f.write("\n".join(fps) + "\n")
+
+
+def drop_bench_overlap():
+    """Remove practice items whose question is a benchmark question (MMLU-Pro repeats questions under other ids and
+    contains MATH train items) -> {set: removed ids}."""
+    fps, removed = bench_fingerprints(), {}
+    for path in sorted(PRACTICE_DIR.glob("*.jsonl.gz")):
+        rows = read_jsonl(path)
+        keep = [r for r in rows if fingerprint(r["problem"]) not in fps]
+        if len(keep) < len(rows):
+            removed[path.name] = [r["id"] for r in rows if r not in keep]
+            write_jsonl(path, keep)
+    return removed
 
 
 def load(spec):

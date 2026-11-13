@@ -179,3 +179,11 @@ def test_grader_exception_scores_wrong(monkeypatch):
     monkeypatch.setitem(grade.GRADERS, "ifeval", boom)
     r = grade.score({"task": "ifeval"}, "</think>answer", "stop", True)
     assert r["correct"] is False and r["kind"] == "grade_error"
+
+
+def test_practice_has_no_benchmark_question():
+    from wsp import data
+    fps = data.bench_fingerprints()
+    assert len(fps) > 2900
+    hits = [r["id"] for r in data.load("practice:all") if data.fingerprint(r["problem"]) in fps]
+    assert not hits, hits

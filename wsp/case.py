@@ -53,8 +53,8 @@ def set_ids(case, s):
 def set_items(case, s):
     if s.startswith("bench:"):
         return s.split(":", 1)[1], data.load(s)
-    idx = data.by_id()
-    return s, [idx[i] for i in set_ids(case, s)]
+    idx = data.by_id()  # an id dropped from the practice data since (benchmark overlap) is skipped
+    return s, [idx[i] for i in set_ids(case, s) if i in idx]
 
 
 def run_path(case, model, tag):

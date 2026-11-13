@@ -11,7 +11,9 @@ You are the editor: you decide what to change from measurements of what parts of
 `cases/<case>/NOTES.md`; numbers come from `report` (`RESULTS.md`), never copied by hand.
 
 ## Ground rules
-- Edits come from reasoning on measured activations and weights (means, differences, projections).
+- No overfitting (`rules.json` -> `edit.no_overfitting`): never use the evaluation benchmarks' items or answers to
+  derive or choose an edit; the gain must carry over to unseen problems. Edits come from
+  reasoning on measured activations and weights (means, differences, projections).
 - The deliverable is an edit spec within `rules.json` -> `edit` (editable tensors, ops, the payload and
   magnitude limits; `edit` prints the spec's tensors and payload, the build manifest its relative changes). The
   model is always rebuilt from the pinned base, so only the spec counts.

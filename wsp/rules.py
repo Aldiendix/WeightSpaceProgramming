@@ -25,7 +25,7 @@ def doc():
         f"file's sha256. {RULES['about']}", "",
         f"**Submission** `{s['path']}`. {s['about']}", files(s).replace("<entry_schema>", f'"{s["entry_schema"]}"'),
         f"- file types {', '.join(s['allowed_extensions'])}; at most {s['max_total_bytes'] // 1024} KiB in total", "",
-        f"**Edit.** {e['about']}", f"- inheritance: {e['inheritance']}",
+        f"**Edit.** {e['about']}", f"- no overfitting: {e['no_overfitting']}", f"- inheritance: {e['inheritance']}",
         f"- editable tensors: {e['editable_tensors']}", f"- ops: {', '.join(f'`{o}`' for o in e['ops'])}",
         f"- payload: {e['payload']}", f"- relative change: {e['relative_change']}", f"- **limits**: {limits}", "",
         f"**Upload** (`{u['schema']}`). {u['about']}", files(u), f"- {u['manifest'].replace('<schema>', u['schema'])}"])
