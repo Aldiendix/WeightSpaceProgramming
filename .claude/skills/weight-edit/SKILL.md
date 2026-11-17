@@ -41,7 +41,8 @@ You are the editor: you decide what to change from measurements of what parts of
    `acc`; read failing answers yourself. Without that, editing is unlikely to help: say so instead of forcing an
    edit.
 2. **Init**: `init <case> --profile P --include cases/screening/sets/screen64.json --subset dev128=dev:128
-   --subset holdout256=holdout:256`, then `run <case> base dev`. When there is a current champion (or any edit to
+   --subset holdout256=holdout:256` (the `--include` path may be relative to the repository), then
+   `run <case> base dev`. When there is a current champion (or any edit to
    improve on), add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it.
 3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`. The
    contrast kind is `case.json` -> `contrast` (`wsp/directions.py` `CONTRASTS`; add a generator for a new failure).
@@ -52,5 +53,19 @@ You are the editor: you decide what to change from measurements of what parts of
    the promising ones, with a dose series. Every `run` of an edit is paired with the base automatically.
 6. **Freeze** the best edit (`freeze <case> <edit>`), then `run <case> base holdout256` and `run <case> <edit>
    holdout256` (and `bench:<name>` sets if available).
+   `edit` writes `dir_ablate` specs; any other allowed op is written by hand (or by `wsp.gate.ops` for one MLP
+   unit) into `cases/<case>/edits/<name>.json`. Lists may instead be `"file.npz#key"` relative to the spec;
+   `tensor` is a full name from the base's safetensors index (`wsp/edits.py` has the exact semantics):
+   ```
+   {"name": "E1", "base": "<profile>", "parent": "../parent/<parent>.json" (when stacking), "ops": [
+    {"op": "dir_ablate", "tensor": "...layers.15.mlp.down_proj.weight", "side": "out", "u": "E1.npz#u15",
+     "alpha": 6.0, "cols": [3, 17]},                                   # cols optional: all columns
+    {"op": "scale_rows", "tensor": "...layers.4.mlp.up_proj.weight", "rows": [11], "factor": 0.5},
+    {"op": "scale_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "factor": 0.5},
+    {"op": "set_rows", "tensor": "...layers.4.mlp.gate_proj.weight", "rows": [11], "values": "E1.npz#gate"},
+    {"op": "set_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "values": "E1.npz#down"}]}
+   ```
+   `values` is len(rows) x in for `set_rows`, out x len(cols) for `set_cols`. `low_rank` (`edit --low-rank`) is
+   for research only: rules.json does not allow it.
 7. **Deliver**: `report`, update NOTES (and `playbook.md` outside competition tasks), then the final
    `python -m wsp.upload <case> <edit> [--task task.json]` (see "Time budget").

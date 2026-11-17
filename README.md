@@ -19,9 +19,9 @@ wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   upload.py     deliverables -> R2 by the upload protocol   rules.py  loads rules.json, renders "Protocol" below
 .claude/skills/weight-edit/SKILL.md   the agent's workflow (Claude; Codex reads it via the .agents/skills symlink)
 playbook.md     lessons + evidence
-rules.json      the competition protocol                      data/practice/  GSM8K / MATH train with answers
+rules.json      the competition protocol                      data/practice/  practice sets (none is a benchmark item)
 cases/          worked cases (records protocol: wsp/case.py)
-tests/          CPU unit tests                                submissions/    entries (champions merged)
+tests/          CPU unit tests                                submissions/    champions' entries (from the first one)
 tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tools/.config, not committed)
 ```
 
@@ -54,9 +54,10 @@ with use.
   (`tools/.config`) are never committed.
 
 ## Submitting
-Taking part (registration, on-chain commitment, fees, review, runs and decisions) is described by the subnet
-project, [axonry](https://github.com/AxOrganization/axonry). This repository fixes what an entry and its edit are
-("Protocol" below):
+Taking part (registration, on-chain commitment, fees, review, runs and decisions) and each season's settings
+(base model, benchmarks, initial champion and its sid for `parent`) are published by the subnet project,
+[axonry](https://github.com/AxOrganization/axonry). This repository fixes what an entry and its edit are ("Protocol"
+below):
 - A pull request adds exactly one directory `submissions/<hotkey_ss58>/<entry>/` and touches nothing else; only
   champions' directories are merged into `master`.
 - Reusable tools and lessons from entries are folded into the toolkit and `playbook.md` by the maintainers between
@@ -70,11 +71,11 @@ Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this
 - `entry.json` (required): {"schema": "axonry.entry/1", "base": <profile name in wsp/profiles.py>, "parent": <sid of a published submission whose edit to inherit, or null>}
 - `METHOD.md` (required): the method for the agent: the failure to remove, the steps, what to expect
 - `derive/`: method code (Python) the agent runs, using the wsp toolkit
-- `data/`: small auxiliary data
+- `data/`: small auxiliary data the method needs (prompts, contrast texts, word lists, arrays computed from practice data); never benchmark items, their answers or near-duplicates, never model weights
 - file types .json, .jsonl, .npz, .py, .md, .txt, .csv; at most 2048 KiB in total
 
 **Edit.** An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.
-- no overfitting: The edit must improve the model's behaviour, not fit the benchmarks: it is derived without the evaluation benchmarks' items, answers or near-duplicates, from the practice sets and the model's own generations (the practice sets share no question with the benchmarks: data/bench_fingerprints.txt.gz), and its gain must carry over to unseen problems of the same kind; an edit whose gain rests on the benchmarks' specific items is disqualified. Normative: the checks enforce only the limits.
+- no overfitting: The edit must improve the model's behaviour, not fit the benchmarks: it is derived without the evaluation benchmarks' items, answers or near-duplicates, from the toolkit's practice sets, the submission's data/ and the model's own generations, and its gain must carry over to unseen problems of the same kind; an edit whose gain rests on the benchmarks' specific items is disqualified. Every shipped practice set is allowed, including items from a benchmark's source outside its evaluated subset (practice:mmlupro): the practice sets share no question with the benchmarks (data/bench_fingerprints.txt.gz). Other sets built from benchmark test splits (e.g. GSM-Plus, built from GSM8K test) count as near-duplicates. Normative: the checks enforce only the limits.
 - inheritance: With a parent, the spec says "parent": "parent/edit.json" and stacks on that edit, starting from exactly that model's weights; the parent is not uploaded (it is already published): to build, the subnet places the published chain there (each published edit/ directory under its child's parent/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.
 - editable tensors: 2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters
 - ops: `dir_ablate`, `scale_cols`, `scale_rows`, `set_rows`, `set_cols`

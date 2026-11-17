@@ -1,7 +1,9 @@
 # Playbook — what works when editing weights
 
 Read before editing; after a case, merge new lessons into the sections below (rewrite, do not append duplicates).
-Per-case numbers: `python -m wsp.case report` (writes `cases/*/RESULTS.md`).
+Per-case numbers: `python -m wsp.case report` (writes `cases/*/RESULTS.md`). Some research cases below fit on
+benchmark test splits or sets built from them (sycophancy sets, GSM-Plus); in a competition only the practice sets
+count (`rules.json` -> `edit.no_overfitting`).
 
 ## Evidence: frozen edits on confirmation sets
 Paired with the unedited model (same problems and per-problem seeds), model-card sampling; SE clustered by problem.
@@ -154,8 +156,9 @@ Paired gains on DEV128 / HOLDOUT256 after the loop edit (2B unless noted).
   norms are not editable anyway) +0.4 / +1.4 on DEV128 x4: loops become long non-repeating reasoning, still cut.
   Gated-DeltaNet decay, key-input and MLP "repeat vs first occurrence" directions: no selective effect on real loops.
 - **Distracting information in math problems** (GSM-Plus "distraction insertion", an irrelevant sentence with numbers;
-  paired with the original GSM8K problems): a large drop in newer small models (LFM2.5-1.2B 79.6 -> 59.8, Qwen3-1.7B
-  no-think 83.8 -> 66.8, Qwen3.5-2B -13.2; Qwen3-4B-2507 -3.4), and the failures are genuine use of the distractor.
+  paired with the original GSM8K test problems: research only, near-duplicates of gsm8k500 in a competition): a
+  large drop in newer small models (LFM2.5-1.2B 79.6 -> 59.8, Qwen3-1.7B no-think 83.8 -> 66.8, Qwen3.5-2B -13.2;
+  Qwen3-4B-2507 -3.4), and the failures are genuine use of the distractor.
   But the prompt "the problem may contain irrelevant information" changes nothing (LFM +0.0, Qwen3-1.7B +2.7 +- 2.4
   on 300 dev problems), and a key edit on the inserted clause (fit on 498 other problems) hurts (-1 to -11). Unlike
   a user's note, a distractor has no surface mark: judging relevance is reasoning, not a removable copy.

@@ -122,7 +122,8 @@ def cmd_init(a):
             raise SystemExit("the parent edit is for another base")
         c["parent"] = copy_parent(a.parent, d / "parent").relative_to(d).as_posix()
     write_json(d / "case.json", c)
-    include, src = (read_json(a.include) if a.include else []), tuple(a.practice)
+    inc = a.include and (a.include if os.path.exists(a.include) else REPO / a.include)  # repo-relative works anywhere
+    include, src = (read_json(inc) if inc else []), tuple(a.practice)
     dev = include + [r["id"] for r in data.balanced_sample(a.dev - len(include), a.seed, exclude=include, sources=src)]
     sets = {"dev": dev, "holdout": [r["id"] for r in
                                     data.balanced_sample(a.holdout, a.seed + 1, exclude=dev, sources=src)]}
@@ -306,7 +307,8 @@ def main():
     dev = (["--device"], {"default": "cuda"})
     p("init", case, (["--profile"], {"required": True}), (["--contrast"], {"default": "loop"}),
       (["--dev"], {"type": int, "default": 256}), (["--holdout"], {"type": int, "default": 512}),
-      (["--include"], {"help": "json id list forced into dev (e.g. screening problems already looked at)"}),
+      (["--include"], {"help": "json id list forced into dev (e.g. screening problems already looked at); a path relative to the "
+                                "working directory or to the repository"}),
       (["--subset"], {"action": "append", "default": [], "help": "name=split:n, e.g. dev128=dev:128"}),
       (["--seed"], {"type": int, "default": 7}),
       (["--practice"], {"nargs": "+", "default": list(data.PRACTICE), "help": "practice sources for the splits"}),
@@ -330,7 +332,8 @@ def main():
       (["--targets"], {"nargs": "+", "default": ["down_proj"], "choices": ["down_proj", "o_proj"],
                        "help": "matrices the direction is ablated from (o_proj: all columns)"}),
       (["--low-rank"], {"choices": ["gate_proj", "up_proj", "down_proj"],
-                        "help": "instead: replace that MLP matrix by its rank-k approximation (LASER)"}),
+                        "help": "instead: replace that MLP matrix by its rank-k approximation (LASER; research only, "
+                                "low_rank is not an op rules.json allows)"}),
       (["--keep"], {"type": float, "default": 0.1, "help": "fraction of the rank kept by --low-rank"}),
       help="write an edit spec (dir_ablate on the case's directions, or --low-rank)")
     p("freeze", case, (["edit"], {}), help="record the frozen edit before HOLDOUT / benchmarks")

@@ -19,8 +19,8 @@ from pathlib import Path
 
 from .common import DATA, REPO, read_jsonl, write_jsonl
 
-PRACTICE_DIR = REPO / "data" / "practice"  # GSM8K / MATH train with answers (from the post's released logs) and
-PRACTICE = ("gsm8k_train", "math_train")    # ifsynth: GSM8K train questions + IFEval-style checkable constraints
+PRACTICE_DIR = REPO / "data" / "practice"  # the sets listed in the docstring above
+PRACTICE = ("gsm8k_train", "math_train")    # default sources of case splits (math); ifsynth / mmlupro on request
 
 PROMPTS = {
     "math": "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}.",
