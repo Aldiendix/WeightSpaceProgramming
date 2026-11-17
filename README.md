@@ -37,6 +37,10 @@ tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tool
 `python -m wsp.case`, step by step as in the skill. Edits stack: `init <case> --parent <edit.json>` starts from an
 existing edit and the case's edits inherit it. Deliver with `python -m wsp.upload <case> <edit> [--task task.json]`.
 
+## License
+Code: MIT (`LICENSE`). Practice data comes from GSM8K, MATH and MMLU-Pro (each MIT); `ifsynth` adds
+IFEval-style constraints to GSM8K train questions.
+
 ## Repository protocol
 Everything here should raise what an editing agent can do; the rest stays out, so the repository does not grow
 with use.
