@@ -37,26 +37,24 @@ The result is 4 tensors and 16 KB of payload. Measured against the parent, as th
 2.5-3.5% per tensor and 0.4% globally. The conclude direction is nearly orthogonal to the parent's loop direction
 (cosine 0.01 at layer 15, -0.21 at layer 19), so it is a different behaviour, not more loop removal.
 
-`data/conclude_dirs.npz` holds `U[24, 1024]` (plus per-layer stability, separation and pair agreement), measured
-exactly this way on the parent's model. The answers are 2 per problem on the case's 512-problem dev split of GSM8K
+The answers are 2 per problem on the case's 512-problem dev split of GSM8K
 and MATH practice, with the dev128 and holdout256 problems excluded. That gives 128 pairs from 86 correct answers
 (`derive/pairs_src.py`, then `python -m wsp.case extract`). At layers 11, 15, 19 and 23 the split-half stability is
 0.98, the separation 5.8 / 5.7 / 5.1 / 5.7 SD, and the pair agreement 100%.
-The edit is a deterministic function of these arrays.
 
 ## Steps
 Tools: the toolkit (`python -m wsp.case`, `python -m wsp.upload`) and this entry's `derive/` scripts. Copy
-`derive/` and `data/` to the sandbox and run them from there; each script has `-h`.
+`derive/` to the sandbox and run them from there; each script has `-h`.
 - `prun.py` is `wsp.case run` split over all GPUs: the same seeds and files, N times faster.
 - `writers.py build` writes the edit spec.
 - `kinds.py` shows where the answers go.
-- `pairs_src.py` builds the conclude pairs, for the optional step 6.
+- `pairs_src.py` builds the conclude pairs, for step 6.
 
 1. **Case.** Use the same splits as the numbers below:
    `python -m wsp.case init concl --profile qwen35-0.8b-think --parent parent/edit/edit.json --practice gsm8k_train math_train mmlupro ifsynth --dev 512 --subset dev128=dev:128 --subset holdout256=holdout:256`
 2. **Build the edit and its control.**
-   `python derive/writers.py build concl C11-15-19-23_a1 --dirs data/conclude_dirs.npz --alpha 1 --o 11 15 19 23`
-   `python derive/writers.py build concl RAND_C11-15-19-23_a1 --dirs data/conclude_dirs.npz --alpha 1 --o 11 15 19 23 --random-control`
+   `python derive/writers.py build concl C11-15-19-23_a1 --alpha 1 --o 11 15 19 23`
+   `python derive/writers.py build concl RAND_C11-15-19-23_a1 --alpha 1 --o 11 15 19 23 --random-control`
    The control uses a random unit direction orthogonal to `u`, with the same tensors and alpha.
 3. **Upload early.** Write a short `REPORT.md` (what, why, and the expected numbers below). Package without
    uploading: `python -m wsp.upload concl C11-15-19-23_a1 --report REPORT.md --dry-run`. Check the package:
@@ -75,31 +73,14 @@ Tools: the toolkit (`python -m wsp.case`, `python -m wsp.upload`) and this entry
 5. **Freeze and re-upload** with the measured numbers in REPORT.md (`python -m wsp.case freeze concl C11-15-19-23_a1`).
    Only if step 4 came out clearly negative on both sets, fall back to layers 15 and 19 only (`--o 15 19`), verify it
    the same way, and upload whichever is better. Never upload an edit worse than the parent on practice.
-6. **Optional, with time left: re-derive the direction from this run's own answers.** This checks that the shipped arrays
-   are what the method measures:
+6. **re-derive the direction from this run's own answers.**
    - `python -m wsp.case init concl2 --contrast conclude ...` (same arguments as step 1)
    - `python derive/prun.py concl2 base dev --n 2`
    - `python derive/pairs_src.py concl2 --sources gsm8k math --sets dev --exclude dev128 holdout256 --n 128`
    - `python -m wsp.case extract concl2`
 
-   Report the cosine between the new `U[11]`, `U[15]`, `U[19]`, `U[23]` and the shipped ones; expect a high value, since the shipped
-   direction has stability 0.98. Upload an edit built from the re-derived direction only if it beats C11-15-19-23_a1 by
-   more than 2 SE on both dev128 and holdout256.
-
 ## What to expect
-These numbers come from our runs of this exact edit against the parent, using the pinned vLLM image, the subnet's
-admission, evaluation and judge code, and the toolkit's sampling and grading.
-
-**Benchmarks** (8x RTX 4090, the evaluation GPU; 4 samples per question, judged by the subnet's rule). They are for
-information only: the benchmarks are not available in the run, so do not try to reproduce them.
-
-| benchmark | parent | C11-15-19-23_a1 | difference +- SE | verdict |
-|---|---|---|---|---|
-| MATH-500 | 42.45 | 55.00 | +12.55 +- 1.15 | win |
-| GSM8K | 65.65 | 72.05 | +6.40 +- 1.13 | win |
-| AMC23 | 16.25 | 25.00 | +8.75 +- 3.41 | not worse |
-| MMLU-Pro | 36.65 | 41.05 | +4.40 +- 1.11 | win |
-| IFEval | 64.83 | 68.53 | +3.70 +- 1.07 | win |
+These numbers come from our runs of this exact edit against the parent, using the toolkit's sampling and grading.
 
 **Practice, paired with the parent** (what step 4 measures; the same splits as step 1):
 
@@ -109,14 +90,13 @@ information only: the benchmarks are not available in the run, so do not try to 
 | holdout256 x 4, RTX 4090 (1024 answers, fresh problems) | 60.1% | 66.3% | **+6.2 +- 1.5** (138 rescued / 74 lost) | 22.2% -> 11.3% |
 | dev128 x 4, RTX 5090 (first screen) | 55.1% | 63.1% | **+8.0 +- 2.0** (75 rescued / 34 lost) | 22.7% -> 10.9% |
 
-By source on dev128 (RTX 4090): MATH +14.1, MMLU-Pro +5.5, IF +5.5, GSM8K +3.1. On holdout256: GSM8K +8.2,
-MATH +10.9, MMLU-Pro +4.3, IF +1.6, and answers get a third shorter (16.4k -> 10.9k tokens on average). The
+answers get a third shorter (16.4k -> 10.9k tokens on average). The
 random-direction control (same four tensors, alpha 1) gives -1.8 +- 1.9 on dev128.
 
 Variants, on dev128 x 4 paired with the parent (RTX 4090 unless noted):
 - layers 11, 15, 19 and 23 at alpha 1 (this edit): +7.0
 - all six attention layers (3, 7, 11, 15, 19, 23): +5.7
-- layers 15 and 19 only: +4.1. This variant also dominates the parent on the five benchmarks, with 3 wins.
+- layers 15 and 19 only: +4.1.
 - layers 15 and 19 plus loop removal at 11 and 23: +4.3
 - layers 15 and 19 at alpha 0.5 and alpha 2 (RTX 5090): +5.5 and +4.9
 
@@ -132,5 +112,5 @@ Paired gains vs the parent on dev128 x 4 (our first screens, RTX 5090):
   loop are rarely right on math (about 10%), and the gains were within noise.
 
 ## Rules kept
-The method uses only the toolkit's practice sets (GSM8K, MATH, MMLU-Pro and IF practice; never benchmark items) and the
-model's own generations. `data/` holds only arrays computed from those, and nothing is downloaded.
+The method uses only the toolkit's practice sets and the
+model's own generations. nothing is downloaded.
