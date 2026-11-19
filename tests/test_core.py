@@ -189,6 +189,21 @@ def test_practice_has_no_benchmark_question():
     assert not hits, hits
 
 
+def test_benchmarks_are_supplied_never_built(tmp_path, monkeypatch):
+    """The toolkit holds no benchmark: bench:<name> reads only what the organizer supplied, and no module loads a
+    dataset from elsewhere."""
+    import pytest
+    monkeypatch.setattr(data, "DATA", tmp_path)
+    with pytest.raises(FileNotFoundError, match="not part of the toolkit"):
+        data.load("bench:gsm8k500")
+    item = {"id": "b1", "source": "x500", "task": "math", "problem": "1+1?", "answer": "2"}
+    (tmp_path / "bench_x500.jsonl").write_text(json.dumps(item) + "\n")
+    assert data.load("bench:x500") == [item]
+    assert data.manifest("bench:x500")["n"] == 1
+    src = "".join(p.read_text() for p in (data.REPO / "wsp").glob("*.py"))
+    assert "load_dataset" not in src
+
+
 def test_gpu_split_keeps_the_run_order(monkeypatch):
     import argparse
 

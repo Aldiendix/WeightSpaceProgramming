@@ -40,6 +40,13 @@ def scratch(case):
     return WORK / "cases" / case
 
 
+def is_case_set(case, s):
+    """A split or subset of the case (practice), as opposed to a benchmark's tag."""
+    if (cdir(case) / "sets" / f"{s}.json").exists():
+        return True
+    return (cdir(case) / "case.json").exists() and s in conf(case).get("subsets", {})
+
+
 def set_ids(case, s):
     """Ids of a split (sets/<s>.json) or of a subset rule "split:n" in case.json: the first n/k problems of each
     practice source, in split order."""
@@ -89,11 +96,11 @@ def model_path(case, model):
 
 def _base_run_for(case, keys, tag):
     """The base run of this case covering all (problem, sample) keys: the one of the same set first, else another
-    covering them (e.g. base__dev covers dev128). Variants of a benchmark share ids (bench:mmlupro500_sug), so the
+    covering them (e.g. base__dev covers dev128). Variants of a set share ids (e.g. bench:<name>_sug), so the
     same set must win."""
     same = run_path(case, BASE, tag)
     others = sorted((RUNS / case).glob(f"{BASE}__*.jsonl"), key=lambda p: p.stat().st_size)
-    for p in ([same] if same.exists() else []) + [p for p in others if p != same and tag not in data.BENCHMARKS]:
+    for p in ([same] if same.exists() else []) + [p for p in others if p != same and is_case_set(case, tag)]:
         rows = read_jsonl(p)
         if keys <= {(r["id"], r["k"]) for r in rows}:
             return rows

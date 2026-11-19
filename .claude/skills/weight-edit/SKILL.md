@@ -19,7 +19,8 @@ You are the editor: you decide what to change from measurements of what parts of
   model is always rebuilt from the pinned base, so only the spec counts.
 - Choose on practice problems only: `dev*` sets for selection, `holdout*` only after `freeze`. In a competition task
   everything about the evaluation is closed to you (which sets, their items, answers and results): never load, read
-  or look it up, and aim at no particular set; outside one, `bench:<name>` sets only confirm a frozen edit.
+  or look it up, and aim at no particular set. The toolkit holds no benchmark: `bench:<name>` only reads items an
+  organizer supplied, and outside a competition such sets only confirm a frozen edit.
 - Generation uses the profile's model-card sampling; a gain that needs another decoding setting is not a gain.
 - Report everything, including losses and failed attempts.
 

@@ -12,7 +12,7 @@ submitted ("Submitting").
 wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   case.py       case workflow: screen, init, run, pairs, extract, selectivity, edit, compare, freeze, report
   profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
-  data.py       practice sets and the benchmark registry   grade.py  graders, failure kinds
+  data.py       practice sets (no benchmarks)              grade.py  graders, failure kinds
   gen.py        vLLM generation with per-problem seeds      stats.py  summaries, paired comparisons
   probe.py      teacher-forced activation / log-prob reads  directions.py  contrast pairs, directions, writers
   edits.py      declarative edit specs -> model dir + manifest (stacking on a parent)
@@ -30,7 +30,7 @@ tools/          run the toolkit on a remote GPU box (tools/gpu; settings in tool
 `vllm` first if a resolver picks an old version when solving all extras at once.
 - `WSP_MODELS_DIR`: pre-downloaded base models as `<org>__<name>@<revision>/`; otherwise the pinned revision is
   fetched from the HF hub on first use.
-- `WSP_WORK` (default `.work/`): scratch (built models, generations, pairs, benchmark cache). `WSP_CASES` (default
+- `WSP_WORK` (default `.work/`): scratch (built models, generations, pairs; benchmark items when supplied). `WSP_CASES` (default
   `cases/`): case records, e.g. outside a read-only checkout.
 
 ## Workflow
@@ -52,7 +52,8 @@ with use.
   A case enters git once it has a conclusion (a frozen edit, or a negative result merged into the playbook).
 - **Generated views**: the README protocol section and the playbook evidence table; nothing generated is edited
   by hand, and other views (`cases/*/RESULTS.md`) are not kept.
-- **Data**: only the frozen practice sets; benchmarks are fetched and cached in scratch.
+- **Data**: only the frozen practice sets. The toolkit holds no benchmark and no loader for one: `bench:<name>` reads
+  the items the organizer supplies (`$WSP_WORK/data/bench_<name>.jsonl`).
 - **Submissions**: only champions' directories are merged.
 - **Tooling** that is generic and configuration-driven lives in `tools/`; credentials and machine settings
   (`tools/.config`) are never committed.

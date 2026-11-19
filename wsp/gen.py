@@ -145,7 +145,7 @@ def main():
     ap.add_argument("--model", help="model dir (default: the profile's pinned base model)")
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--ids", help="json list of practice problem ids")
-    src.add_argument("--set", help="problem set spec, e.g. bench:math500")
+    src.add_argument("--set", help="problem set spec, e.g. practice:gsm8k_train")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--n", type=int, default=1)
     ap.add_argument("--salt", default="s0")
