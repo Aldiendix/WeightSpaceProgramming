@@ -71,9 +71,9 @@ below):
 <!-- protocol:begin -->
 Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this repository's commit and the file's sha256. Protocol of the weight-editing competition. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.
 
-**Submission** `submissions/<hotkey_ss58>/<entry>/`. A PR adds exactly one directory and touches nothing else. It holds a method for the agent, never weights: the agent derives an edit from it, on the base model or on an inherited edit, and uploads it.
+**Submission** `submissions/<hotkey_ss58>/<entry>/`. A PR adds exactly one directory and touches nothing else. It contributes an idea for improving the model, grounded in the author's own exploration: what fails, why the model does it, and how to find and test an edit that fixes it. The agent carries the idea out on the base model or an inherited edit, derives the edit and uploads it. Findings of that exploration (measurements, arrays, a first candidate) may support the idea; a directory that only hands over an edit, with no idea for the agent to explore and test, is not a method. Never weights.
 - `entry.json` (required): {"schema": "axonry.entry/1", "base": <profile name in wsp/profiles.py>, "parent": <sid of a published submission whose edit to inherit, or null>}
-- `METHOD.md` (required): the method for the agent: the failure to remove, the steps, what to expect
+- `METHOD.md` (required): the idea for the agent: the failure to remove, why the model shows it, how to find and test the edit, what to expect
 - `derive/`: method code (Python) the agent runs, using the wsp toolkit
 - `data/`: small auxiliary data the method needs (prompts, contrast texts, word lists, arrays computed from practice data); never benchmark items, their answers or near-duplicates, never model weights
 - file types .json, .jsonl, .npz, .py, .md, .txt, .csv; at most 2048 KiB in total
