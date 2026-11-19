@@ -189,6 +189,21 @@ def test_practice_has_no_benchmark_question():
     assert not hits, hits
 
 
+def test_request_practice_is_graded_by_the_official_checkers():
+    """practice:tuluif: one checker instruction each, with arguments the official checker accepts."""
+    import pytest
+    R = pytest.importorskip("lm_eval.tasks.ifeval.instructions_registry")
+    rows = data.load("practice:tuluif")
+    assert len(rows) == 1024 and len({r["id"] for r in rows}) == 1024
+    for r in rows:
+        assert r["task"] == "ifeval" and len(r["instruction_id_list"]) == len(r["kwargs"]) == 1, r["id"]
+        iid, kw = r["instruction_id_list"][0], r["kwargs"][0]
+        R.INSTRUCTION_DICT[iid](iid).build_description(**kw)
+    item = next(r for r in rows if r["instruction_id_list"] == ["punctuation:no_comma"])
+    assert score(item, "<think>x</think> A short text without that mark.", "stop", True)["correct"]
+    assert not score(item, "<think>x</think> A text, with one.", "stop", True)["correct"]
+
+
 def test_benchmarks_are_supplied_never_built(tmp_path, monkeypatch):
     """The toolkit holds no benchmark: bench:<name> reads only what the organizer supplied, and no module loads a
     dataset from elsewhere."""

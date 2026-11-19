@@ -3,9 +3,10 @@
 instruction checkers).
 
 practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits), shipped in
-                  data/practice/: gsm8k_train, math_train (math), ifsynth (instruction following), mmlupro
-                  (multiple choice). No practice question is a benchmark question
-                  (data/bench_fingerprints.txt.gz; tests/test_core.py checks it).
+                  data/practice/: gsm8k_train, math_train (math), ifsynth and tuluif (instruction following: on
+                  math questions / on varied user requests, see README "License"), mmlupro (multiple choice). No
+                  practice question is a benchmark question (data/bench_fingerprints.txt.gz; tests/test_core.py
+                  checks it).
 bench:<name>      benchmark items, never in the toolkit: the organizer supplies them as $WSP_WORK/data/bench_<name>.jsonl
                   (each item with its "task"); the toolkit holds no loader for any benchmark
 private:<name>    organizer-only sets from $WSP_PRIVATE_DIR (never in the repo)

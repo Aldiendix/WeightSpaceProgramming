@@ -39,7 +39,10 @@ existing edit and the case's edits inherit it. Deliver with `python -m wsp.uploa
 
 ## License
 Code: MIT (`LICENSE`). Practice data comes from GSM8K, MATH and MMLU-Pro (each MIT); `ifsynth` adds
-IFEval-style constraints to GSM8K train questions.
+IFEval-style constraints to GSM8K train questions; `tuluif` is 1024 prompts of
+[allenai/RLVR-IFeval](https://huggingface.co/datasets/allenai/RLVR-IFeval) (Tulu 3, ODC-BY, revision 47c03c7), kept
+where the constraint means exactly what an official checker tests and the request shares no 8-word span with the
+evaluation.
 
 ## Repository protocol
 Everything here should raise what an editing agent can do; the rest stays out, so the repository does not grow
