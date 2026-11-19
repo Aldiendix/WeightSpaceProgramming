@@ -58,28 +58,28 @@ with use.
   (`tools/.config`) are never committed.
 
 ## Submitting
-Taking part (registration, on-chain commitment, fees, review, runs and decisions) and each season's settings
-(base model, benchmarks, initial champion and its sid for `parent`) are published by the subnet project,
+Taking part (registration, on-chain commitment, fees, review, runs and decisions) and the rules in force (base
+model, benchmarks, thresholds, the published entries one may name as `parent`) are published by the subnet project,
 [axonry](https://github.com/AxOrganization/axonry). This repository fixes what an entry and its edit are ("Protocol"
 below):
 - A pull request adds exactly one directory `submissions/<hotkey_ss58>/<entry>/` and touches nothing else; only
   champions' directories are merged into `master`.
-- Reusable tools and lessons from entries are folded into the toolkit and `playbook.md` by the maintainers between
-  seasons, with their source. Report toolkit problems as issues.
+- Reusable tools and lessons from entries are folded into the toolkit and `playbook.md` by the maintainers from time
+  to time, with their source. Report toolkit problems as issues.
 
 ## Protocol
 <!-- protocol:begin -->
 Generated from `rules.json` (`python -m wsp.rules doc`); a competition pins this repository's commit and the file's sha256. Protocol of the weight-editing competition. Checks, admission, evaluation and ranking are done by the subnet project, which reads this file.
 
-**Submission** `submissions/<hotkey_ss58>/<entry>/`. A PR adds exactly one directory and touches nothing else. It contributes an idea for improving the model, grounded in the author's own exploration: what fails, why the model does it, and how to find and test an edit that fixes it. The agent carries the idea out on the base model or an inherited edit, derives the edit and uploads it. Findings of that exploration (measurements, a first candidate) may support the idea; a directory that only hands over an edit, with no idea for the agent to explore and test, is not a method. Never weights.
+**Submission** `submissions/<hotkey_ss58>/<entry>/`. A PR adds exactly one directory and touches nothing else. It contributes an idea for improving the model, grounded in the author's own exploration: what fails, why the model does it, and how to find and test an edit that fixes it. The agent carries the idea out on the base model or an inherited edit, derives the edit and uploads it. What that exploration measured and observed may explain the idea; a directory that only hands over an edit, with no idea for the agent to explore and test, is not a method. The edit is derived by the agent during the run from practice data only: nothing in the directory may let the result come from elsewhere or aim at the evaluation, and nothing about the evaluation (which sets, their items, answers or results) reaches the agent. Never weights.
 - `entry.json` (required): {"schema": "axonry.entry/1", "base": <profile name in wsp/profiles.py>, "parent": <sid of a published submission whose edit to inherit, or null>}
 - `METHOD.md` (required): the idea for the agent: the failure to remove, why the model shows it, how to find and test the edit, what to expect
 - `derive/`: method code (Python) the agent runs, using the wsp toolkit
-- `data/`: small auxiliary text the method needs (prompts, contrast texts, word lists), readable as it stands; numeric arrays are computed during the run by derive/, never shipped; never benchmark items, their answers or near-duplicates, never model weights
+- `data/`: small auxiliary text the method needs (prompts, contrast texts, word lists), readable as it stands; numeric arrays are computed during the run by derive/, never shipped
 - file types .json, .jsonl, .py, .md, .txt, .csv; at most 1024 KiB in total
 
 **Edit.** An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.
-- no overfitting: The edit must improve the model's behaviour, not fit the benchmarks: it is derived without the evaluation benchmarks' items, answers or near-duplicates, from the toolkit's practice sets, the submission's data/ and the model's own generations, and its gain must carry over to unseen problems of the same kind; an edit whose gain rests on the benchmarks' specific items is disqualified. Every shipped practice set is allowed, including items from a benchmark's source outside its evaluated subset (practice:mmlupro): the practice sets share no question with the benchmarks (data/bench_fingerprints.txt.gz). Other sets built from benchmark test splits (e.g. GSM-Plus, built from GSM8K test) count as near-duplicates. Normative: the checks enforce only the limits.
+- no overfitting: The edit must improve the model's behaviour, not fit the benchmarks: it is derived without the evaluation benchmarks' items, answers or near-duplicates, from the toolkit's practice sets, the submission's data/ and the model's own generations, and its gain must carry over to unseen problems of the same kind; an edit whose gain rests on the benchmarks' specific items is disqualified. Every shipped practice set is allowed: none shares a question with the evaluation (data/bench_fingerprints.txt.gz). Other sets built from the evaluation's sources count as near-duplicates. Normative: the checks enforce only the limits.
 - inheritance: With a parent, the spec says "parent": "parent/edit.json" and stacks on that edit, starting from exactly that model's weights; the parent is not uploaded (it is already published): to build, the subnet places the published chain there (each published edit/ directory under its child's parent/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.
 - editable tensors: 2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters
 - ops: `dir_ablate`, `scale_cols`, `scale_rows`, `set_rows`, `set_cols`

@@ -1,6 +1,6 @@
 # Decisions: qwen35-2b-think_loop2
 
-Qwen3.5-2B thinking after the loop edit (`parent/L15L19_k64_a6`): a candidate base for later seasons. Question: is
+Qwen3.5-2B thinking after the loop edit (`parent/L15L19_k64_a6`): a candidate base for a later rules version. Question: is
 there edit-reachable headroom on the competition's five benchmarks (32k tokens, profile sampling)?
 
 1. Prompt hints and sampling: hints concise / check / stepwise / trust all <= 0 on MATH500 (-3.0 to -5.5: any

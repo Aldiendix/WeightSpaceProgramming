@@ -1,8 +1,8 @@
 # Decisions: qwen35-0.8b-think_loop2
 
-The competition's base (season s1: Qwen3.5-0.8B, thinking on, 32k tokens, math500 / gsm8k500 / amc23 / mmlupro500 /
-ifeval, 4 samples) after a first loop edit (`parent/L15L19_k64_a6`: our reproduction of the paper's edit, not the season's
-initial champion).
+The competition's first base (Qwen3.5-0.8B, thinking on, 32k tokens, math500 / gsm8k500 / amc23 / mmlupro500 / ifeval,
+4 samples) after a first loop edit (`parent/L15L19_k64_a6`: our reproduction of the paper's edit, not a published
+entry).
 
 1. Second loop edit (residual direction, L15-22 down_proj): k128 +3.9 +- 2.2 DEV128 x4, +4.7 +- 2.9 HOLDOUT256; cut
    share 36% -> 27%. Diminishing returns.
