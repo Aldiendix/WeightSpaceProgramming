@@ -24,8 +24,11 @@ You are the editor: you decide what to change from measurements of what parts of
 
 ## Time budget (competition tasks have a hard deadline)
 - Plan before starting: the deadline is in the brief. Generation dominates the cost: every `run` starts vLLM (a few
-  minutes), and a 128-problem run of a model that loops to the token limit takes 15-30 min on one 24 GB GPU; probes
-  (`extract`, `selectivity`) take minutes. Count the runs you can afford and drop what does not fit.
+  minutes), and its length grows with the number of problems and how often the model runs to the token limit;
+  probes (`extract`, `selectivity`) take minutes. Time one run, then count the runs you can afford and drop what does
+  not fit.
+- Keep every GPU busy: a `run` splits its problems over all visible GPUs; to run independent jobs side by side, give
+  each its own `CUDA_VISIBLE_DEVICES`.
 - Use the cheapest evidence first: `selectivity` screens edits in minutes; generate only for the most promising
   ones, on `dev128`.
 - **Upload early, then improve**: as soon as one edit passes selectivity and gains on DEV, upload it
@@ -42,15 +45,21 @@ You are the editor: you decide what to change from measurements of what parts of
    edit.
 2. **Init**: `init <case> --profile P --include cases/screening/sets/screen64.json --subset dev128=dev:128
    --subset holdout256=holdout:256` (the `--include` path may be relative to the repository), then
-   `run <case> base dev`. When there is a current champion (or any edit to
-   improve on), add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it.
-3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`. The
-   contrast kind is `case.json` -> `contrast` (`wsp/directions.py` `CONTRASTS`; add a generator for a new failure).
+   `run <case> base dev`. The splits default to math practice: add `--practice` sources (`wsp/data.py`) so that every
+   task type of the benchmarks is covered, since an edit that helps one type can hurt another. When there is a
+   current champion (or any edit to improve on), add `--parent <its edit.json>`: "base" is then that model, and your
+   edits stack on it. First read the `REPORT.md` next to that edit.json: what the parent tried and what did not
+   work.
+3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`; build
+   them from a base run with enough finished traces, since held-out pairs need traces of their own. The contrast
+   kind is `case.json` -> `contrast` (`wsp/directions.py` `CONTRASTS`; add a generator for a new failure).
 4. **Extract**: `extract <case>` -> per-layer stability, separation, writer totals. Take layers where the direction
    is stable and MLPs write much of it; avoid the last layer.
 5. **Edit**: `edit <case> --layers ... --topk 64 --alpha ...` and the same with `--random-control`; then
    `selectivity <case> <edit>` (failure log-prob down, normal log-prob ~unchanged) and `run <case> <edit> dev128` for
-   the promising ones, with a dose series. Every `run` of an edit is paired with the base automatically.
+   the promising ones, with a dose series. Every `run` of an edit is paired with the base automatically; choose
+   between edits with `compare <case> <a> <b> <set>` on the same problems, and trust a gap only when it is about
+   twice its SE; when it is not, add DEV problems or samples (`--n`) rather than choosing on HOLDOUT.
 6. **Freeze** the best edit (`freeze <case> <edit>`), then `run <case> base holdout256` and `run <case> <edit>
    holdout256` (and `bench:<name>` sets if available).
    `edit` writes `dir_ablate` specs; any other allowed op is written by hand (or by `wsp.gate.ops` for one MLP

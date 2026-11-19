@@ -13,7 +13,8 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
   scratch in $WSP_WORK: runs/<case>/<model>__<set>.jsonl, cases/<case>/{pairs*.json,directions.npz} (edits carry
     the directions and neurons they use), models/<case>__<model>/
 <model> is "base" or an edit name, optionally with sampling overrides "<model>@key=value,..." (a decoding baseline,
-paired with the plain base run); <set> is a case set or subset name, or `bench:<name>`.
+paired with the plain base run); <set> is a case set or subset name, or `bench:<name>`. Generation uses every visible
+GPU (CUDA_VISIBLE_DEVICES); `compare` pairs two edits with each other.
 """
 import argparse
 import json
@@ -159,8 +160,14 @@ def cmd_pairs(a):
     rows = [r for s in a.sets for r in read_jsonl(run_path(a.case, BASE, s)) if r["id"] not in exclude]
     pairs = make_pairs(rows, AutoTokenizer.from_pretrained(str(profiles.base_dir(prof["name"]))), prof["thinking"], a.n, a.seed, a.per_trace,
                        kind=conf(a.case)["contrast"])
+    hint = (f"the base runs of {', '.join(a.sets)} have too few finished traces left (after exclusions); run base "
+            "on a larger set and build the pairs from it")
+    if not pairs:
+        raise SystemExit(f"no pairs: {hint}")
     write_json(scratch(a.case) / f"{a.out}.json", pairs)
     print(f"{len(pairs)} pairs from {len({q['id'] for q in pairs})} traces -> {a.out}.json")
+    if len(pairs) < a.n / 2:
+        print(f"warning: only {len(pairs)} of {a.n} pairs: {hint}")
 
 
 def cmd_extract(a):
@@ -201,6 +208,29 @@ def cmd_edit(a):
                                cdir(a.case) / "edits", name, a.random_control, parent=parent, targets=a.targets)
     tensors, payload = spec_size(spec)
     print(f"{spec}: {tensors} tensors, payload {payload} bytes")
+
+
+def compare(rows_a, rows_b):
+    """B against A on the (problem, sample) keys both runs have."""
+    p = paired(rows_a, rows_b)
+    if not p["n"]:
+        raise SystemExit("the two runs share no problem")
+    return p
+
+
+def cmd_compare(a):
+    runs = [run_path(a.case, m, s) for m, s in ((a.a, a.set), (a.b, a.set_b or a.set))]
+    for r in runs:
+        if not r.exists():
+            have = sorted(p.stem for p in (RUNS / a.case).glob("*.jsonl"))
+            raise SystemExit(f"no run {r.stem}; runs of this case: {', '.join(have)}")
+    p = compare(*(read_jsonl(r) for r in runs))
+    print(f"{a.b} vs {a.a}: {p['n']} answers on {p['problems']} shared problems")
+    print(f"  acc {_pct(p['base_acc'])} -> {_pct(p['edit_acc'])}, gain {100 * p['gain']:+.1f} ± {100 * p['se']:.1f} "
+          f"(SE by problem); {a.b} better on {p['rescues']}, {a.a} better on {p['losses']}")
+    print(f"  cut {_pct(p['base_cut'])} -> {_pct(p['edit_cut'])}")
+    for src, v in sorted(p["by_source"].items(), key=lambda kv: str(kv[0])):
+        print(f"  {src}: {_pct(v['base'])} -> {_pct(v['edit'])} (n {v['n']})")
 
 
 def cmd_freeze(a):
@@ -336,6 +366,10 @@ def main():
                                 "low_rank is not an op rules.json allows)"}),
       (["--keep"], {"type": float, "default": 0.1, "help": "fraction of the rank kept by --low-rank"}),
       help="write an edit spec (dir_ablate on the case's directions, or --low-rank)")
+    p("compare", case, (["a"], {"help": "base or an edit name"}), (["b"], {"help": "base or an edit name"}),
+      (["set"], {"help": "the set both were run on"}),
+      (["--set-b"], {"help": "B's set when it differs (e.g. a subset): only the shared problems count"}),
+      help="paired comparison of two models' runs on the problems both have (gain of B over A)")
     p("freeze", case, (["edit"], {}), help="record the frozen edit before HOLDOUT / benchmarks")
     p("screen", (["profiles"], {"nargs": "+"}), (["--set"], {"default": "screen64"}),
       help="base runs of several profiles on cases/screening/sets/<set>.json")

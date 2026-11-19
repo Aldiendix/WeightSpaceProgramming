@@ -187,3 +187,40 @@ def test_practice_has_no_benchmark_question():
     assert len(fps) > 2900
     hits = [r["id"] for r in data.load("practice:all") if data.fingerprint(r["problem"]) in fps]
     assert not hits, hits
+
+
+def test_gpu_split_keeps_the_run_order(monkeypatch):
+    import argparse
+
+    from wsp import gen
+
+    items = [{"id": f"p{i}"} for i in range(7)]
+    parts = gen.split_items(items, 3)
+    assert sorted(r["id"] for p in parts for r in p) == sorted(r["id"] for r in items)
+    shards = [[{"id": r["id"], "k": k} for r in p for k in (1, 0)] for p in parts]
+    assert [(r["id"], r["k"]) for r in gen.merge_rows(items, shards)] == [(f"p{i}", k) for i in range(7) for k in (0, 1)]
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "2,3")
+    assert gen.visible_gpus() == ["2", "3"]
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    assert gen.visible_gpus() == []
+    smi = "0, 20000, 24564\n1, 1, 24564\n2, 3, 24564\n"  # GPU 0 holds another job
+    monkeypatch.setattr(gen.subprocess, "run", lambda *a, **k: argparse.Namespace(stdout=smi))
+    assert gen.free_gpus(["0", "1", "2"], 0.9) == ["1", "2"]
+    assert gen.free_gpus(["0"], 0.9) == ["0"]  # nothing free: left to vLLM to report
+
+
+def test_compare_two_edits_on_shared_problems(tmp_path, monkeypatch, capsys):
+    import argparse
+
+    monkeypatch.setattr(case, "RUNS", tmp_path)
+    (tmp_path / "c").mkdir()
+    for name, correct in (("A__holdout256", [0, 1, 1, 0]), ("B__holdout", [1, 1, 1, 0, 1, 1])):
+        (tmp_path / "c" / f"{name}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in _rows(correct)))
+    case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set="holdout256", set_b="holdout"))
+    out = capsys.readouterr().out
+    assert "4 answers on 4 shared problems" in out and "B better on 1, A better on 0" in out
+    try:
+        case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set="holdout256", set_b=None))
+        raise AssertionError("missing run accepted")
+    except SystemExit as e:
+        assert "no run B__holdout256" in str(e)
