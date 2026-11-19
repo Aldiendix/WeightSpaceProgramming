@@ -3,8 +3,9 @@
 python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run]
 
 1. package under $WSP_WORK/deliver/<case>__<edit>/: cases/<case>/edits/<edit>.json -> edit/edit.json (base, parent,
-   ops; a parent is referenced as parent/edit.json, not uploaded: it is already published) with its arrays in
-   edit/edit.npz, and the report -> edit/REPORT.md (default: the case's NOTES.md + RESULTS.md);
+   ops; a parent is referenced as <start>/edit.json, start = parent or champion, not uploaded: it is already
+   published) with its arrays in edit/edit.npz, and the report -> edit/REPORT.md (default: the case's NOTES.md +
+   RESULTS.md);
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
 Credentials: --task (the subnet's task.json, section "r2": endpoint, bucket, prefix, access_key_id,
 secret_access_key, session_token) or R2_* environment variables.

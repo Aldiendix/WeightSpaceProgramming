@@ -87,6 +87,16 @@ def load_chain(spec_path):
 PUBLISHED = "edit.json"  # a published edit is a directory edit/ with edit.json (+ edit.npz, parent/, ...)
 
 
+def start_dir(spec_path):
+    """The directory name an inherited edit keeps in a case, which an upload also uses to reference it
+    ("<name>/edit.json"): a published edit keeps the name of the directory holding its edit/ (in a task, parent/ or
+    champion/); any other spec goes to parent/."""
+    p = Path(spec_path)
+    if p.name != PUBLISHED:
+        return "parent"
+    return (p.parent.parent if p.parent.name == "edit" else p.parent).name
+
+
 def copy_parent(spec_path, dst):
     """Copy an inherited edit into dst: a published edit directory verbatim (byte-identical, so it can be checked
     against its publication), any other spec by `export`. Returns the copied spec path."""
@@ -101,9 +111,10 @@ def copy_parent(spec_path, dst):
 
 def export(spec_path, dst, name, parents=True):
     """Copy a spec into dst as <name>.json (+ <name>.npz holding its own arrays), without local bookkeeping.
-    parents=True: the parent chain goes to dst/parent/ (see copy_parent), self-contained.
-    parents=False (uploads): the parent is only referenced as parent/edit.json; it is already published, and the
-    subnet puts the published chain there before building. Returns the new spec path."""
+    parents=True: the parent chain goes to dst/<its directory name> (see copy_parent), self-contained.
+    parents=False (uploads): the parent is only referenced, as <its directory name>/edit.json (parent/ or champion/
+    in a task); it is already published, and the subnet puts the published chain there before building. Returns
+    the new spec path."""
     src, dst = Path(spec_path), Path(dst)
     spec, arrays = json.load(open(src)), {}
     for op in spec["ops"]:
@@ -115,8 +126,9 @@ def export(spec_path, dst, name, parents=True):
                 arrays[new] = _resolve(ref, src.parent)
                 op[k] = f"{name}.npz#{new}"
     if spec.get("parent"):
-        spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / "parent"), dst) if parents
-                          else f"parent/{PUBLISHED}")
+        where = start_dir(src.parent / spec["parent"])
+        spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / where), dst) if parents
+                          else f"{where}/{PUBLISHED}")
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
         np.savez(dst / f"{name}.npz", **arrays)

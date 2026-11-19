@@ -6,7 +6,7 @@
   "path_pattern": "^submissions/5[1-9A-HJ-NP-Za-km-z]{47}/[a-z0-9][a-z0-9_.-]{0,63}/",
   "entry_schema": "axonry.entry/1",
   "files": {
-   "entry.json": "{\"schema\": <entry_schema>, \"base\": <profile name in wsp/profiles.py>, \"parent\": <sid of a published submission whose edit to inherit, or null>}",
+   "entry.json": "{\"schema\": <entry_schema>, \"base\": <profile name in wsp/profiles.py>, \"parent\": <sid of a published submission whose edit to inherit, \"champion\" (the champion when the run starts), or null>}",
    "METHOD.md": "the idea for the agent: the failure to remove, why the model shows it, how to find and test the edit, what to expect",
    "derive/": "method code (Python) the agent runs, using the wsp toolkit",
    "data/": "small auxiliary text the method needs (prompts, contrast texts, word lists), readable as it stands; numeric arrays are computed during the run by derive/, never shipped"
@@ -28,7 +28,7 @@
  "edit": {
   "about": "An edit spec (wsp/edits.py) of whitelisted ops, deterministic functions of the starting weights and the spec's arrays; its base equals entry.json's base. The subnet builds the model from it.",
   "no_overfitting": "The edit must improve the model's behaviour, not fit the benchmarks: it is derived without the evaluation benchmarks' items, answers or near-duplicates, from the toolkit's practice sets, the submission's data/ and the model's own generations, and its gain must carry over to unseen problems of the same kind; an edit whose gain rests on the benchmarks' specific items is disqualified. Every shipped practice set is allowed: none shares a question with the evaluation (data/bench_fingerprints.txt.gz). Other sets built from the evaluation's sources count as near-duplicates. Normative: the checks enforce only the limits.",
-  "inheritance": "With a parent, the spec says \"parent\": \"parent/edit.json\" and stacks on that edit, starting from exactly that model's weights; the parent is not uploaded (it is already published): to build, the subnet places the published chain there (each published edit/ directory under its child's parent/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.",
+  "inheritance": "The task holds the entry's parent, if any, in parent/edit/ and the champion at the start of the run, when it differs, in champion/edit/; the agent starts from one of them or from the base. A spec that starts from a published edit says \"parent\": \"<start>/edit.json\" (parent or champion) and stacks on that edit, starting from exactly that model's weights; the start is not uploaded (it is already published): to build, the subnet places the published chain where each spec points (each published edit/ directory under its child's parent/ or champion/). The limits apply to the spec's own ops, measured against the parent model; neither the accumulated change nor the chain length is limited.",
   "editable_tensors": "2-D weight matrices inside the main decoder layers (not auxiliary stacks such as MTP heads or vision towers); never embeddings, output head, norms, biases or other parameters",
   "ops": [
    "dir_ablate",
@@ -49,7 +49,7 @@
   "about": "When the task is finished, the deliverables go to the task's R2 prefix, files first and manifest last (python -m wsp.upload); nothing else is uploaded. The last complete manifest before the deadline counts (complete = every listed file present with matching sha256).",
   "schema": "axonry.upload/1",
   "files": {
-   "edit/edit.json": "the edit spec: {\"base\", \"parent\" (only with a parent: \"parent/edit.json\"), \"ops\"}",
+   "edit/edit.json": "the edit spec: {\"base\", \"parent\" (only when it starts from a published edit: \"parent/edit.json\" or \"champion/edit.json\"), \"ops\"}",
    "edit/edit.npz": "the arrays the ops reference, when they reference any",
    "edit/REPORT.md": "what was found, what was changed and why, controls, what did not work"
   },

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 import numpy as np
@@ -54,6 +55,25 @@ def test_upload_references_parent_without_copying_it(tmp_path, monkeypatch):
     out, man = upload.package("c", "e")
     assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/REPORT.md"}  # nothing else
     assert json.loads((out / "edit" / "edit.json").read_text()) == {"base": "b", "parent": "parent/edit.json", "ops": []}
+
+
+def test_upload_references_the_start_by_its_task_directory(tmp_path, monkeypatch):
+    from wsp.edits import copy_parent, start_dir
+    task = tmp_path / "task"
+    for d in ("parent", "champion"):
+        (task / d / "edit").mkdir(parents=True)
+        (task / d / "edit" / "edit.json").write_text(json.dumps({"base": "b", "ops": []}))
+    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    for d in ("parent", "champion"):
+        case = tmp_path / "cases" / d
+        start = copy_parent(task / d / "edit" / "edit.json", case / start_dir(task / d / "edit" / "edit.json"))
+        (case / "edits").mkdir()
+        (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "ops": [],
+                                                           "parent": os.path.relpath(start, case / "edits")}))
+        (case / "NOTES.md").write_text("n")
+        out, _ = upload.package(d, "e")
+        assert json.loads((out / "edit" / "edit.json").read_text())["parent"] == f"{d}/edit.json"
 
 
 def test_published_parent_is_copied_verbatim(tmp_path):

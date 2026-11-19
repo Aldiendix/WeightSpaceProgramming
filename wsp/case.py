@@ -5,7 +5,7 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
   kept in cases/<case>/:
     case.json                  {"profile", "contrast", "subsets": {name: "split:n"}, "frozen", "parent", "practice"}
     sets/dev.json, sets/holdout.json   the practice splits (subsets are derived from case.json rules)
-    parent/                    (stacked cases) the inherited edit, verbatim
+    parent/ (or champion/)     (stacked cases) the inherited edit, verbatim, under its directory name in the task
     edits/<edit>.json|.npz     edit specs (the products; models rebuild bit for bit from them)
     results/<model>__<set>.json    {"summary", "paired"}; <model>__selectivity.json; directions.json (per layer)
     NOTES.md                   decisions, by hand
@@ -154,10 +154,10 @@ def cmd_init(a):
     c = {"profile": a.profile, "contrast": a.contrast, "subsets": subsets, "frozen": None, "parent": None,
          "practice": list(a.practice)}
     if a.parent:  # stack on an existing edit: copy it (with its own parents) into the case
-        from .edits import copy_parent, load_chain  # noqa: PLC0415
+        from .edits import copy_parent, load_chain, start_dir  # noqa: PLC0415
         if load_chain(a.parent)[-1][0]["base"] != a.profile:
             raise SystemExit("the parent edit is for another base")
-        c["parent"] = copy_parent(a.parent, d / "parent").relative_to(d).as_posix()
+        c["parent"] = copy_parent(a.parent, d / start_dir(a.parent)).relative_to(d).as_posix()
     write_json(d / "case.json", c)
     inc = a.include and (a.include if os.path.exists(a.include) else REPO / a.include)  # repo-relative works anywhere
     include, src = (read_json(inc) if inc else []), tuple(a.practice)

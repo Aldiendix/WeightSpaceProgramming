@@ -48,10 +48,11 @@ You are the editor: you decide what to change from measurements of what parts of
 2. **Init**: `init <case> --profile P --include cases/screening/sets/screen64.json --subset dev128=dev:128
    --subset holdout256=holdout:256` (the `--include` path may be relative to the repository), then
    `run <case> base dev`. The splits default to math practice: add `--practice` sources (`wsp/data.py`) so that every
-   practice task type is covered, since an edit that helps one type can hurt another. When there is a
-   current champion (or any edit to improve on), add `--parent <its edit.json>`: "base" is then that model, and your
-   edits stack on it. First read the `REPORT.md` next to that edit.json: what the parent tried and what did not
-   work.
+   practice task type is covered, since an edit that helps one type can hurt another. To build on a published
+   edit, add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it. A task holds the
+   entry's parent in `parent/edit/` and, when it differs, the current champion in `champion/edit/`; screen them and
+   start from the one that suits the method (the upload references it by that directory name). First read the
+   `REPORT.md` next to that edit.json: what it tried and what did not work.
 3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`; build
    them from a base run with enough finished traces, since held-out pairs need traces of their own. The contrast
    kind is `case.json` -> `contrast` (`wsp/directions.py` `CONTRASTS`; add a generator for a new failure).
@@ -68,7 +69,7 @@ You are the editor: you decide what to change from measurements of what parts of
    unit) into `cases/<case>/edits/<name>.json`. Lists may instead be `"file.npz#key"` relative to the spec;
    `tensor` is a full name from the base's safetensors index (`wsp/edits.py` has the exact semantics):
    ```
-   {"name": "E1", "base": "<profile>", "parent": "../parent/<parent>.json" (when stacking), "ops": [
+   {"name": "E1", "base": "<profile>", "parent": "../<case.json parent>" (when stacking), "ops": [
     {"op": "dir_ablate", "tensor": "...layers.15.mlp.down_proj.weight", "side": "out", "u": "E1.npz#u15",
      "alpha": 6.0, "cols": [3, 17]},                                   # cols optional: all columns
     {"op": "scale_rows", "tensor": "...layers.4.mlp.up_proj.weight", "rows": [11], "factor": 0.5},
