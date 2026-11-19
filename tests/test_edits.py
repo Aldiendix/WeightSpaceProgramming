@@ -112,3 +112,25 @@ def test_built_model_follows_its_sources(tmp_path, tiny_model, monkeypatch):
     case.model_path("c", "E")
     assert (tmp_path / "models" / "c__E" / "wsp_sources.sha256").exists()
     assert not list((tmp_path / "models").glob(".c__E*"))  # no private directories left behind
+
+
+def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
+    """An uploaded spec builds on its own: arrays referenced by any op field (values included) go into its npz, once
+    per distinct reference."""
+    from wsp.edits import export, spec_size
+    d0, d1 = "model.layers.0.mlp.down_proj.weight", T  # 4 x 6
+    rng = np.random.default_rng(0)
+    np.savez(tmp_path / "E1.npz", w=rng.standard_normal((1, 6)).astype(np.float32),
+             down=rng.standard_normal((4, 1)).astype(np.float32), u=np.ones(4, np.float32))
+    spec = _spec(tmp_path, [{"op": "set_rows", "tensor": d0, "rows": [3], "values": "E1.npz#w"},
+                            {"op": "set_rows", "tensor": d1, "rows": [2], "values": "E1.npz#w"},
+                            {"op": "set_cols", "tensor": d1, "cols": [3], "values": "E1.npz#down"},
+                            {"op": "dir_ablate", "tensor": d0, "u": "E1.npz#u", "alpha": 1.0}])
+    out = export(spec, tmp_path / "up" / "edit", "edit", parents=False)
+    refs = [v for op in json.loads(out.read_text())["ops"] for k, v in op.items() if isinstance(v, str) and "#" in v]
+    assert refs and all(r.startswith("edit.npz#") for r in refs)
+    assert sorted(np.load(tmp_path / "up" / "edit" / "edit.npz").files) == ["down", "u", "w"]
+    assert spec_size(out) == spec_size(spec)
+    _, m1 = build(spec, tmp_path / "m1", base_dir=tiny_model)
+    _, m2 = build(out, tmp_path / "m2", base_dir=tiny_model)
+    assert [t["edited_sha256"] for t in m1["tensors"]] == [t["edited_sha256"] for t in m2["tensors"]]

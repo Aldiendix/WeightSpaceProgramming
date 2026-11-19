@@ -51,6 +51,9 @@ def decoder_prefix(names):
     return max(count, key=count.get)
 
 
+ARRAY_FIELDS = ("u", "cols", "rows", "values")  # op fields that may hold an array, inline or as "file.npz#key"
+
+
 def _resolve(v, base_dir):
     if v is None or isinstance(v, (list, int, float)):
         return None if v is None else np.asarray(v)
@@ -116,15 +119,18 @@ def export(spec_path, dst, name, parents=True):
     in a task); it is already published, and the subnet puts the published chain there before building. Returns
     the new spec path."""
     src, dst = Path(spec_path), Path(dst)
-    spec, arrays = json.load(open(src)), {}
+    spec, arrays, keys = json.load(open(src)), {}, {}
     for op in spec["ops"]:
-        for k in ("u", "cols", "rows"):
+        for k in ARRAY_FIELDS:
             ref = op.get(k)
             if isinstance(ref, str):
-                path, _, key = ref.partition("#")
-                new = key if key not in arrays else f"{Path(path).stem}_{key}"
-                arrays[new] = _resolve(ref, src.parent)
-                op[k] = f"{name}.npz#{new}"
+                if ref not in keys:  # one stored array per distinct reference
+                    path, _, key = ref.partition("#")
+                    new, i = key or Path(path).stem, 1
+                    while new in arrays:
+                        new, i = f"{key or Path(path).stem}_{i}", i + 1
+                    arrays[new], keys[ref] = _resolve(ref, src.parent), new
+                op[k] = f"{name}.npz#{keys[ref]}"
     if spec.get("parent"):
         where = start_dir(src.parent / spec["parent"])
         spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / where), dst) if parents
@@ -279,7 +285,7 @@ def spec_size(spec_path):
     spec_path = Path(spec_path)
     spec, seen, payload = json.load(open(spec_path)), set(), 0
     for op in spec["ops"]:
-        for k in ("u", "cols", "rows", "values"):
+        for k in ARRAY_FIELDS:
             v = op.get(k)
             if v is None or json.dumps(v) in seen:
                 continue
