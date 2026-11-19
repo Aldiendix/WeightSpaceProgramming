@@ -84,3 +84,31 @@ def test_low_rank_keeps_top_singular_components(tmp_path, tiny_model):
     W = load_file(str(out / "model.safetensors"))[T].float()
     S = torch.linalg.svdvals(W)
     assert S[1] / S[0] < 0.02  # rank 1 up to bf16 rounding
+
+
+def test_built_model_follows_its_sources(tmp_path, tiny_model, monkeypatch):
+    """model_path builds a model whole, reuses it while spec and arrays are unchanged, and rebuilds when either changes
+    or when a directory holds no record of what it was built from (an older or half-written build)."""
+    from wsp import case, profiles
+    monkeypatch.setattr(case, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(case, "MODELS", tmp_path / "models")
+    monkeypatch.setattr(profiles, "base_dir", lambda name: tiny_model)
+    d = tmp_path / "cases" / "c" / "edits"
+    d.mkdir(parents=True)
+    (tmp_path / "cases" / "c" / "case.json").write_text(json.dumps({"profile": "tiny"}))
+    (d / "E.json").write_text(json.dumps({"base": "tiny", "ops": [
+        {"op": "dir_ablate", "tensor": T, "u": "E.npz#u", "alpha": 1.0}]}))
+
+    def weights():
+        return load_file(str(tmp_path / "models" / "c__E" / "model.safetensors"))[T]
+    np.savez(d / "E.npz", u=np.array([1.0, 0, 0, 0], np.float32))
+    p = case.model_path("c", "E")
+    w1, stamp = weights(), (tmp_path / "models" / "c__E" / "wsp_sources.sha256").stat().st_mtime_ns
+    assert case.model_path("c", "E") == p and (tmp_path / "models" / "c__E" / "wsp_sources.sha256").stat().st_mtime_ns == stamp
+    np.savez(d / "E.npz", u=np.array([0, 1.0, 0, 0], np.float32))  # same json, new arrays
+    case.model_path("c", "E")
+    assert not torch.equal(weights(), w1)
+    (tmp_path / "models" / "c__E" / "wsp_sources.sha256").unlink()  # a build that never finished
+    case.model_path("c", "E")
+    assert (tmp_path / "models" / "c__E" / "wsp_sources.sha256").exists()
+    assert not list((tmp_path / "models").glob(".c__E*"))  # no private directories left behind

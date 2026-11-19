@@ -17,9 +17,11 @@ paired with the plain base run); <set> is a case set or subset name, or `bench:<
 GPU (CUDA_VISIBLE_DEVICES); `compare` pairs two edits with each other.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
+import shutil
 
 from . import data, profiles
 from .common import CASES, MODELS, REPO, RUNS, WORK, read_json, read_jsonl, write_json
@@ -80,17 +82,44 @@ def split_model(model):
     return name, {k: val(v) for k, v in (kv.split("=") for kv in over.split(",") if kv)}
 
 
+def _sources_digest(spec):
+    """sha256 of what a built model comes from: every spec of the chain and the arrays it references."""
+    from .edits import load_chain  # noqa: PLC0415
+    h = hashlib.sha256()
+    for s, d in load_chain(spec):
+        h.update(json.dumps(s, sort_keys=True).encode())
+        for f in sorted({v.split("#")[0] for op in s["ops"] for v in op.values() if isinstance(v, str) and "#" in v}):
+            h.update((d / f).read_bytes())
+    return h.hexdigest()
+
+
 def model_path(case, model):
     """The case's starting model (the pinned base, or the parent edit built on it for a stacked case), or the built
-    model of one of its edits (built on first use)."""
+    model of one of its edits. A built model is used only if it was built from the spec and arrays as they are now;
+    otherwise it is built in a private directory and moved into place whole, so jobs started side by side never read a
+    half-written model and an edit rewritten under the same name never runs with stale weights."""
     parent = conf(case).get("parent")
     if model == BASE and not parent:
         return str(profiles.base_dir(conf(case)["profile"]))
     spec = cdir(case) / parent if model == BASE else cdir(case) / "edits" / f"{model}.json"
-    path = MODELS / f"{case}__{model}"
-    if not (path / "wsp_edit_manifest.json").exists():
+    path, digest = MODELS / f"{case}__{model}", _sources_digest(spec)
+    mark = path / "wsp_sources.sha256"
+
+    def current():
+        return mark.exists() and mark.read_text() == digest
+    if not current():
         from .edits import build  # noqa: PLC0415
-        build(spec, path)
+        tmp, old = (path.with_name(f".{path.name}.{tag}.{os.getpid()}") for tag in ("new", "old"))
+        shutil.rmtree(tmp, ignore_errors=True)
+        build(spec, tmp)
+        (tmp / mark.name).write_text(digest)
+        if current():  # another job finished the same build meanwhile
+            shutil.rmtree(tmp)
+        else:
+            if path.exists():
+                path.rename(old)
+            tmp.rename(path)
+            shutil.rmtree(old, ignore_errors=True)
     return str(path)
 
 
