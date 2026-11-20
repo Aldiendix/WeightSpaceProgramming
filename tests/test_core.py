@@ -187,6 +187,23 @@ def test_grader_exception_scores_wrong(monkeypatch):
     assert r["correct"] is False and r["kind"] == "grade_error"
 
 
+def test_math_grading_off_the_main_thread_raises():
+    """math-verify's time limit needs the main thread: elsewhere grading stops instead of scoring answers wrong."""
+    import threading
+    from wsp import grade
+    item, out = {"task": "math", "answer": "1/2"}, {}
+
+    def run():
+        try:
+            grade.score(item, "\\boxed{1/2}", "stop", False)
+        except grade.GraderError as e:
+            out["e"] = e
+    t = threading.Thread(target=run)
+    t.start()
+    t.join()
+    assert "e" in out and grade.score(item, "\\boxed{1/2}", "stop", False)["kind"] == "correct"
+
+
 def test_practice_has_no_benchmark_question():
     from wsp import data
     fps = data.bench_fingerprints()

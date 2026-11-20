@@ -8,8 +8,10 @@ Graders (item["task"]):  math    last \\boxed{} of the final answer, exact match
 The final answer is the text after </think> in thinking mode; an answer whose thinking never closed has none.
 Failure kinds: correct | finished_wrong | finished_no_answer | cut_loop (hit the token limit in a loop) | cut_other |
 grade_error (the grader raised on this answer, e.g. a regex time limit in an IFEval checker: scored wrong).
+Grade on the main thread: math-verify's time limit uses signal.alarm (GraderError elsewhere, never a silent "wrong").
 """
 import re
+import threading
 
 LOOP_DUP = 0.5  # tail duplicate-n-gram share above which a cut answer counts as a loop
 
@@ -53,12 +55,18 @@ def _lazy(mod):
     return _LAZY[mod]
 
 
+class GraderError(RuntimeError):
+    """The grader cannot run here: not the answer's fault, so it is raised instead of scored."""
+
+
 def _norm(s):
     s = s.strip().strip("$").replace(",", "").replace("\\!", "").replace(" ", "")
     return re.sub(r"\\text\{([^}]*)\}", r"\1", s).rstrip(".")
 
 
 def _math(item, answer):
+    if threading.current_thread() is not threading.main_thread():
+        raise GraderError("math answers are graded on the main thread (math-verify's time limit uses signal.alarm)")
     pred = last_boxed(answer)
     if pred is None:
         return None, False
@@ -109,6 +117,8 @@ def score(item, text, finish_reason, thinking):
     err = False
     try:
         pred, correct = GRADERS[item.get("task", "math")](item, answer_part(text)) if closed else (None, False)
+    except GraderError:
+        raise
     except Exception:  # noqa: BLE001 - a checker that fails on an answer (e.g. a regex time limit) scores it wrong
         pred, correct, err = None, False, True
     dup = tail_dup_ratio(text)
