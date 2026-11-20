@@ -159,6 +159,14 @@ def test_adopted_edit_builds_the_published_model(tmp_path, tiny_model, monkeypat
     _, a = build(d / "edits" / "champion.json", tmp_path / "m1", base_dir=tiny_model)
     _, b = build(pub / "edit.json", tmp_path / "m2", base_dir=tiny_model)
     assert [t["edited_sha256"] for t in a["tensors"]] == [t["edited_sha256"] for t in b["tensors"]]
+    assert (d / "adopted" / "champion" / "edit" / "edit.json").exists()
+    for name, f in (("x", 0.5), ("y", 2.0)):   # unpublished edits of the same name stay apart, under the adopted name
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "E1.json").write_text(json.dumps({"name": "E1", "base": "b", "ops": [
+            {"op": "scale_cols", "tensor": T, "cols": [0], "factor": f}]}))
+        C.cmd_adopt(argparse.Namespace(case="c", edit=str(tmp_path / name / "E1.json"), name=name))
+    x, y = (build(d / "edits" / f"{n}.json", tmp_path / f"m_{n}", base_dir=tiny_model)[1] for n in "xy")
+    assert x["tensors"][0]["edited_sha256"] != y["tensors"][0]["edited_sha256"]
 
 
 def test_attention_output_of_hybrid_layers():

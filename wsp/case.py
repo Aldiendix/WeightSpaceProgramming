@@ -7,7 +7,7 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
     sets/dev.json, sets/holdout.json   the practice splits (subsets are derived from case.json rules)
     <sid>/edit/                (stacked cases) the inherited published edit, verbatim, kept as the task keeps it
     parent/                    (stacked on an edit that is not published) its exported copy and chain
-    adopted/<sid>/edit/        published edits added to compare against (`adopt`)
+    adopted/<sid>/edit/        published edits added to compare against (`adopt`; unpublished: adopted/<name>/)
     edits/<edit>.json|.npz     edit specs (the products; models rebuild bit for bit from them)
     results/<model>__<set>.json    {"summary", "paired"}; <model>__selectivity.json; directions.json (per layer)
     NOTES.md                   decisions, by hand
@@ -242,16 +242,16 @@ def cmd_run(a):
 
 def cmd_adopt(a):
     """A published edit (e.g. the current champion) as a model of the case, to run and compare on the case's sets:
-    copied verbatim under adopted/<its sid>/edit/, as the task keeps it, with a spec <name> of no ops of its own
-    stacked on it."""
-    from .edits import copy_parent, load_chain, start_dir  # noqa: PLC0415
+    copied verbatim under adopted/<its sid>/edit/, as the task keeps it (an unpublished edit: exported to
+    adopted/<name>/), with a spec <name> of no ops of its own stacked on it."""
+    from .edits import _published, copy_parent, load_chain, start_dir  # noqa: PLC0415
     c, d = conf(a.case), cdir(a.case)
     if load_chain(a.edit)[-1][0]["base"] != c["profile"]:
         raise SystemExit("that edit is for another base")
     spec = d / "edits" / f"{a.name}.json"
     if spec.exists():
         raise SystemExit(f"{spec} exists")
-    start = copy_parent(a.edit, d / "adopted" / start_dir(a.edit))
+    start = copy_parent(a.edit, d / "adopted" / (start_dir(a.edit) if _published(a.edit) else a.name))
     write_json(spec, {"name": a.name, "base": c["profile"], "parent": os.path.relpath(start, spec.parent), "ops": []})
     print(f"{a.name}: run and compare it like an edit (to build on it, init a case with --parent instead)")
 
