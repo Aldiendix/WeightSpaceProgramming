@@ -61,6 +61,12 @@ def get(name):
     return {"name": name, "hf": hf, "revision": revision, "thinking": thinking, "sampling": dict(sampling)}
 
 
+def base_name(name):
+    """The pinned base as an edit spec names it ("parent" of a spec that starts from the base): "<hf_repo>@<revision>";
+    None for a name that is not a profile."""
+    return f"{PROFILES[name][0]}@{PROFILES[name][1]}" if name in PROFILES else None
+
+
 def base_dir(name):
     """Local directory with the profile's pinned base model files."""
     p = get(name)

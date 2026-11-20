@@ -53,9 +53,10 @@ You are the editor: you decide what to change from measurements of what parts of
    dev128=dev:128 --subset holdout256=holdout:256`, then `run <case> base dev`. Cover every practice task type
    (`wsp/data.py`), since an edit that helps one type can hurt another (without `--practice` the splits are math
    only); a subset takes equally many problems of each source. To build on a published
-   edit, add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it. A task holds the
-   entry's parent in `parent/edit/` and, when it differs, the current champion in `champion/edit/`; screen them and
-   start from the one that suits the method (the upload references it by that directory name). An entry is judged
+   edit, add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it. A task holds each
+   start it offers in `<sid>/edit/` (`task.json` -> `starts` says which is the entry's parent and which the current
+   champion); screen them and start from the one that suits the method (`--parent <sid>/edit/edit.json`: the
+   upload names it by its sid). An entry is judged
    against the current champion: when starting elsewhere, `adopt` the champion into the case and compare with it on
    the same sets. First read the `REPORT.md` next to that edit.json: what it tried and what did not work.
 3. **Pairs**: `pairs <case> --sets dev`, and held-out pairs with `--exclude-pairs pairs --out pairs_heldout`; build

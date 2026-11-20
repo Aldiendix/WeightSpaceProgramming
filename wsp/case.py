@@ -5,7 +5,9 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
   kept in cases/<case>/:
     case.json                  {"profile", "contrast", "subsets": {name: "split:n"}, "frozen", "parent", "practice"}
     sets/dev.json, sets/holdout.json   the practice splits (subsets are derived from case.json rules)
-    parent/ (or champion/)     (stacked cases) the inherited edit, verbatim, under its directory name in the task
+    <sid>/edit/                (stacked cases) the inherited published edit, verbatim, kept as the task keeps it
+    parent/                    (stacked on an edit that is not published) its exported copy and chain
+    adopted/<sid>/edit/        published edits added to compare against (`adopt`)
     edits/<edit>.json|.npz     edit specs (the products; models rebuild bit for bit from them)
     results/<model>__<set>.json    {"summary", "paired"}; <model>__selectivity.json; directions.json (per layer)
     NOTES.md                   decisions, by hand
@@ -240,15 +242,16 @@ def cmd_run(a):
 
 def cmd_adopt(a):
     """A published edit (e.g. the current champion) as a model of the case, to run and compare on the case's sets:
-    copied verbatim under adopted/<name>/ with a spec of no ops of its own stacked on it."""
-    from .edits import copy_parent, load_chain  # noqa: PLC0415
+    copied verbatim under adopted/<its sid>/edit/, as the task keeps it, with a spec <name> of no ops of its own
+    stacked on it."""
+    from .edits import copy_parent, load_chain, start_dir  # noqa: PLC0415
     c, d = conf(a.case), cdir(a.case)
     if load_chain(a.edit)[-1][0]["base"] != c["profile"]:
         raise SystemExit("that edit is for another base")
     spec = d / "edits" / f"{a.name}.json"
     if spec.exists():
         raise SystemExit(f"{spec} exists")
-    start = copy_parent(a.edit, d / "adopted" / a.name)
+    start = copy_parent(a.edit, d / "adopted" / start_dir(a.edit))
     write_json(spec, {"name": a.name, "base": c["profile"], "parent": os.path.relpath(start, spec.parent), "ops": []})
     print(f"{a.name}: run and compare it like an edit (to build on it, init a case with --parent instead)")
 
@@ -467,7 +470,7 @@ def main():
       (["--subset"], {"action": "append", "default": [], "help": "name=split:n, e.g. dev128=dev:128"}),
       (["--seed"], {"type": int, "default": 7}),
       (["--practice"], {"nargs": "+", "default": list(data.PRACTICE), "help": "practice sources for the splits"}),
-      (["--parent"], {"help": "edit to build on, e.g. a published submission's edit/edit.json (copied verbatim): "
+      (["--parent"], {"help": "edit to build on, e.g. a task's start <sid>/edit/edit.json (copied verbatim): "
                                 "the case starts from that model"}),
       help="create a case and its practice splits")
     p("run", case, (["model"], {"help": "base or an edit name"}), (["set"], {"help": "case set or bench:<name>"}),
@@ -497,7 +500,7 @@ def main():
       (["set"], {"nargs": "+", "help": "the set(s) both were run on; several are pooled"}),
       (["--set-b"], {"nargs": "+", "help": "B's set(s) when they differ (e.g. a subset): only the shared problems count"}),
       help="paired comparison of two models' runs on the problems both have (gain of B over A)")
-    p("adopt", case, (["edit"], {"help": "a published edit.json, e.g. the task's champion/edit/edit.json"}),
+    p("adopt", case, (["edit"], {"help": "a published edit.json, e.g. the champion's in the task, <sid>/edit/edit.json"}),
       (["--name"], {"default": "champion"}),
       help="add a published edit as a model of the case (to compare against it on the case's sets)")
     p("split", case, (["name"], {}), (["--n"], {"type": int, "required": True}),

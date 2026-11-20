@@ -31,7 +31,7 @@ case "$cmd" in
         rsync -a -e "ssh -F $SSHCFG" tools/queue.sh "wsp-gpu:$WSP_REMOTE_WORK/" ;;
   pull) # the kept case records produced on the box (protocol: wsp/case.py); hand-written notes stay local
         rsync -az -e "ssh -F $SSHCFG" --include '*/' --include 'case.json' --include 'sets/*.json' \
-          --include 'results/*.json' --include 'edits/*.json' --include 'edits/*.npz' --include 'parent/**' \
+          --include 'results/*.json' --include 'edits/*.json' --include 'edits/*.npz' --include 'parent/**' --include '**/edit/**' \
           --exclude '*' "wsp-gpu:$WSP_REMOTE_REPO/cases/" ./cases/ ;;
   run) $SSH "$ENV && $1" ;;
   sh) $SSH "$1" ;;

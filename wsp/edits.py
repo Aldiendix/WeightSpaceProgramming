@@ -1,8 +1,10 @@
 """Weight edits as declarative, reproducible specs.
 
 A spec (JSON: {name, base, ops, parent?}; base = a profile name, see profiles.py) lists operations on named
-tensors of the base model. "parent" (a path relative to the spec) stacks it on another spec, e.g. the current
-champion's edit: the parent chain is applied first, then the spec's own ops. `build` applies them in
+tensors of the base model. "parent" stacks it on another spec, e.g. the current champion's edit: the parent chain
+is applied first, then the spec's own ops. "parent" is the name of a published edit placed next to the spec as
+<name>/edit/edit.json (a published edit is a directory edit/; in a competition the name is its sid), a path to a spec
+(local edits), or the base itself as "<hf_repo>@<revision>" (none: the base too). `build` applies them in
 float32, stores the result in the base dtype, writes a loadable model dir (untouched files are symlinks), and an
 exact diff + manifest (sha256 of every base and edited tensor) that re-applies bit for bit. The manifest measures
 changes both against the base (whole chain) and against the parent model (own ops only: own_tensors,
@@ -15,6 +17,8 @@ Operations ("u", "cols", "rows" are inline lists or "file.npz#key" relative to t
   set_rows    W[rows, :] = values (len(rows) x in)   set_cols  W[:, cols] = values (out x len(cols))
               ("write a neuron": e.g. the gate_proj / up_proj rows and the down_proj column of one MLP unit)
   low_rank    W = best rank-k approximation of W (SVD), k = max(1, round(keep * min(W.shape)))  (LASER)
+  round       W = W in the base dtype, back in float32: what building a chain does between its links (a chain carried
+              into one spec rounds where its links ended, so it builds the same model bit for bit)
 The manifest also records what limit checks need (changed entries, relative change, base norm per tensor); the
 limits themselves are in rules.json and are checked by the subnet project, not here.
 """
@@ -27,6 +31,8 @@ import numpy as np
 
 from . import profiles
 from .common import sha256_bytes, write_json
+
+PUBLISHED = "edit.json"  # a published edit is a directory edit/ with edit.json (+ edit.npz, REPORT.md, its parents)
 
 AUXILIARY_STACKS = r"mtp|visual|vision"  # layer stacks that are not the main decoder (MTP heads, vision towers)
 
@@ -71,6 +77,22 @@ def _mask(sel, like):
     return m
 
 
+NAME = re.compile(r"[A-Za-z0-9_-]+")  # a published edit's name (a sid): one path component, nothing else
+
+
+def parent_path(spec, d):
+    """The spec file a spec (in directory d) stacks on; None when it starts from the base."""
+    ref = spec.get("parent")
+    if not ref or ref == profiles.base_name(spec["base"]):
+        return None
+    if NAME.fullmatch(ref):
+        return (Path(d) / ref / "edit" / PUBLISHED).resolve()
+    if ref.endswith(".json"):
+        return (Path(d) / ref).resolve()
+    raise ValueError(f"parent {ref!r} is neither a published edit's name, a spec, nor this spec's base "
+                     f"({profiles.base_name(spec['base'])})")
+
+
 def load_chain(spec_path):
     """[(spec, its directory)] from the root parent down to this spec; all on the same base."""
     chain, seen, p = [], set(), Path(spec_path).resolve()
@@ -80,48 +102,46 @@ def load_chain(spec_path):
         seen.add(p)
         spec = json.load(open(p))
         chain.append((spec, p.parent))
-        p = (p.parent / spec["parent"]).resolve() if spec.get("parent") else None
+        p = parent_path(spec, p.parent)
     chain.reverse()
     if len({s["base"] for s, _ in chain}) > 1:
         raise ValueError("a spec and its parents must share one base")
     return chain
 
 
-PUBLISHED = "edit.json"  # a published edit is a directory edit/ with edit.json (+ edit.npz, parent/, ...)
-
-
 def _published(p):
-    return p.name == PUBLISHED and p.parent.name != "edits"  # a case's own edits live in edits/
+    p = Path(p).resolve()  # a relative path given from inside the directory names it as well
+    return p.name == PUBLISHED and p.parent.name == "edit"  # kept as <name>/edit/edit.json
 
 
 def start_dir(spec_path):
-    """The directory name an inherited edit keeps in a case, which an upload also uses to reference it
-    ("<name>/edit.json"): a published edit keeps the name of the directory holding its edit/ (in a task, parent/ or
-    champion/); any other spec goes to parent/."""
-    p = Path(spec_path)
-    if not _published(p):
-        return "parent"
-    return (p.parent.parent if p.parent.name == "edit" else p.parent).name
+    """The name an inherited edit keeps in a case (<name>/edit/), which an upload also uses to reference it: a
+    published edit keeps the name of the directory holding its edit/ (in a task, its sid); any other spec goes to
+    parent/."""
+    p = Path(spec_path).resolve()
+    return p.parent.parent.name if _published(p) else "parent"
 
 
 def copy_parent(spec_path, dst):
-    """Copy an inherited edit into dst: a published edit directory verbatim (byte-identical, so it can be checked
-    against its publication), any other spec by `export`. Returns the copied spec path."""
+    """Copy an inherited edit into dst: a published edit directory verbatim to dst/edit/ (byte-identical, so it can
+    be checked against its publication), any other spec by `export`. Returns the copied spec path."""
     import shutil  # noqa: PLC0415
 
     spec_path = Path(spec_path)
     if _published(spec_path):
-        shutil.copytree(spec_path.parent, dst, dirs_exist_ok=True)
-        return Path(dst) / PUBLISHED
-    name = json.load(open(spec_path)).get("name") or spec_path.stem
-    return export(spec_path, dst, name if f"{name}.json" != PUBLISHED else f"{name}_local")  # never taken as published
+        shutil.copytree(spec_path.parent, Path(dst) / "edit", dirs_exist_ok=True)
+        return Path(dst) / "edit" / PUBLISHED
+    return export(spec_path, dst, json.load(open(spec_path)).get("name") or spec_path.stem)
 
 
 def _carry(links, name):
     """The ops of links [(spec, its directory)], in order, with every array they reference moved to name.npz
-    (one stored array per distinct file and reference) -> (ops, arrays)."""
+    (one stored array per distinct file and reference), and after every link but the last a round of each tensor it
+    edited, as building the chain rounds each link's model: the ops build exactly the chain's model -> (ops, arrays)."""
     ops, arrays, keys = [], {}, {}
-    for spec, d in links:
+    for j, (spec, d) in enumerate(links):
+        if j:
+            ops += [{"op": "round", "tensor": t} for t in sorted({op["tensor"] for op in links[j - 1][0]["ops"]})]
         for op in spec["ops"]:
             op = dict(op)
             for k in ARRAY_FIELDS:
@@ -150,52 +170,67 @@ def _write(dst, name, spec, ops, arrays):
 
 def export(spec_path, dst, name):
     """Copy a spec into dst as <name>.json (+ <name>.npz holding its own arrays), without local bookkeeping, its
-    parent chain under dst/<its directory name> (see copy_parent): self-contained. Returns the new spec path."""
+    parent chain next to it (see copy_parent; a published parent referenced by its name): self-contained. Returns
+    the new spec path."""
     src, dst = Path(spec_path), Path(dst)
     spec = json.load(open(src))
     ops, arrays = _carry([(spec, src.parent)], name)
-    if spec.get("parent"):
-        where = start_dir(src.parent / spec["parent"])
-        spec["parent"] = os.path.relpath(copy_parent(src.parent / spec["parent"], dst / where), dst)
+    parent = parent_path(spec, src.parent)
+    if parent:
+        where = start_dir(parent)
+        copied = copy_parent(parent, dst / where)
+        spec["parent"] = where if _published(copied) and NAME.fullmatch(where) else os.path.relpath(copied, dst)
     return _write(dst, name, spec, ops, arrays)
 
 
-STARTS = ("parent", "champion")  # the published edits an upload may stack on (rules.json -> edit.inheritance)
-
-
-def export_upload(spec_path, dst, start=None):
+def export_upload(spec_path, dst, start=None, starts=None):
     """Write a spec as an upload, dst/edit.json (+ edit.npz), that builds the same model from what the protocol can
-    reference: the base, or a published start of the task as "<start>/edit.json" (not uploaded; the subnet places
-    it). Local edits the spec stacks on (not published) are carried: their ops go into the upload, in order.
-    The published edit nearest in the chain is the start, referenced by its directory name (parent or champion);
-    start: "parent"/"champion" names the task directory it came from, "base" carries the whole chain instead.
-    A chain rounds each link's model to the base dtype and carried ops are rounded once, so where two carried links
-    edit the same tensor the upload can differ from the case's model by that rounding.
-    -> (path, what it stacks on: "<start>/edit.json" or "the base", names of the carried local edits)."""
+    reference (rules.json -> edit.inheritance): a published start of the task by its sid (not uploaded; the subnet
+    places it at <sid>/edit/), or the base as "<hf_repo>@<revision>". Local edits the spec stacks on (not published) are
+    carried: their ops go into the upload, in order. The published edit nearest in the chain is the start, referenced
+    by the name of its directory (in a task, its sid); start: a sid names it instead, "base" carries the whole chain.
+    starts: the sids the task offers (task.json -> starts), checked when given.
+    -> (path, the "parent" it writes, names of the carried edits)."""
     chain = load_chain(spec_path)  # also refuses cycles and mixed bases
+    base = profiles.base_name(chain[-1][0]["base"])
+    if base is None:
+        raise SystemExit(f"base {chain[-1][0]['base']!r} is not a profile (wsp/profiles.py)")
     paths, p = [], Path(spec_path).resolve()
-    for spec, _ in reversed(chain):
+    for spec, d in reversed(chain):
         paths.append(p)
-        p = (p.parent / spec["parent"]).resolve() if spec.get("parent") else None
+        p = parent_path(spec, d)
     paths.reverse()
     i = max((j for j, q in enumerate(paths[:-1]) if _published(q)), default=None)
-    if start in STARTS and i is None:
+    if start not in (None, "base") and i is None:
         raise SystemExit(f"--start {start}: this edit stacks on no published edit (it builds from the base)")
-    name = None if i is None else ("base" if start == "base" else start or start_dir(paths[i]))
-    if name not in (None, "base", *STARTS):
-        raise SystemExit(f"this edit stacks on the published edit in {paths[i].parent}; an upload can reference only "
-                         "the task's parent/ or champion/ (rules.json -> edit.inheritance). Pass --start parent or "
-                         "--start champion (the task directory it was copied from), or --start base to carry its "
-                         "whole chain's ops in this edit (built from the base; the limits then count them)")
-    first = 0 if name in (None, "base") else i + 1
+    sid = None if i is None or start == "base" else start or start_dir(paths[i])
+    if sid is not None and (not NAME.fullmatch(sid) or starts is not None and sid not in starts):
+        offers = "" if starts is None else f", but the task offers {', '.join(starts) or 'none'} (task.json -> starts)"
+        raise SystemExit(f"this edit stacks on the published edit in {paths[i].parent}, named {sid!r}{offers}. Keep the "
+                         "start under its sid (init --parent <sid>/edit/edit.json does) or pass --start <sid>; or "
+                         "--start base to carry its whole chain's ops in this edit (built from the base; the limits "
+                         "then count them)")
+    first = 0 if sid is None else i + 1
     ops, arrays = _carry(chain[first:], "edit")
-    spec = {"base": chain[-1][0]["base"], "parent": f"{name}/{PUBLISHED}" if first else None}
-    carried = [chain[j][0].get("name") or paths[j].stem for j in range(first, len(chain) - 1)]
-    return _write(Path(dst), "edit", spec, ops, arrays), spec["parent"] or "the base", carried
+    spec = {"base": chain[-1][0]["base"], "parent": sid or base}
+    carried = [start_dir(paths[j]) if _published(paths[j]) else chain[j][0].get("name") or paths[j].stem
+               for j in range(first, len(chain) - 1)]
+    return _write(Path(dst), "edit", spec, ops, arrays), spec["parent"], carried
 
 
-def apply_ops(tensors, ops, base_dir):
-    """tensors: name -> float32 torch tensor, modified in place."""
+def flatten_chain(spec_path, name="edit"):
+    """The whole chain as one spec on the base that builds the same model bit for bit, whatever its ops ->
+    (spec, arrays), its arrays referenced as <name>.npz#key."""
+    chain = load_chain(spec_path)
+    ops, arrays = _carry(chain, name)
+    return {"base": chain[-1][0]["base"], "parent": profiles.base_name(chain[-1][0]["base"]), "ops": ops}, arrays
+
+
+OPS = ("dir_ablate", "scale_cols", "scale_rows", "set_rows", "set_cols", "low_rank", "round")  # every op apply_ops runs
+
+
+def apply_ops(tensors, ops, base_dir, dtypes=None):
+    """tensors: name -> float32 torch tensor, modified in place; dtypes: name -> the base dtype (for round)."""
     import torch  # noqa: PLC0415
 
     for op in ops:
@@ -222,6 +257,10 @@ def apply_ops(tensors, ops, base_dir):
                 W[sel] = val
             else:
                 W[:, sel] = val
+        elif op["op"] == "round":  # to the base dtype and back, as between the links of a chain
+            if dtypes is None:
+                raise ValueError("round needs the base dtypes (apply_ops(..., dtypes))")
+            W.copy_(W.to(dtypes[op["tensor"]]).to(torch.float32))
         elif op["op"] == "low_rank":
             U, S, Vh = torch.linalg.svd(W, full_matrices=False)
             k = max(1, round(float(op["keep"]) * min(W.shape)))
@@ -251,7 +290,7 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     for i, (s, d) in enumerate(chain):  # parents first; each link yields a real model (rounded to the base dtype),
         if i == len(chain) - 1:         # so a child starts from exactly the parent model's weights
             parent = {n: work[n].to(orig[n].dtype) for n in names}
-        apply_ops(work, s["ops"], d)
+        apply_ops(work, s["ops"], d, {n: t.dtype for n, t in orig.items()})
         work = {n: w.to(orig[n].dtype).to(torch.float32) for n, w in work.items()}
     edited = {n: work[n].to(orig[n].dtype).contiguous() for n in names}
     own = sorted({op["tensor"] for op in spec["ops"]})
