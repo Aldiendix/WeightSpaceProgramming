@@ -34,6 +34,11 @@ def test_paired():
     assert (p["base_acc"], p["edit_acc"], p["rescues"], p["losses"]) == (0.5, 0.75, 2, 1)
     assert abs(p["gain"] - 0.25) < 1e-9 and p["se"] > 0
     assert summarize(base)["acc_when_finished"] == 1.0 and "pass_at_k" not in summarize(base)
+    two = [dict(r, source="t") if i >= 2 else r for i, r in enumerate(base)], \
+        [dict(r, source="t") if i >= 2 else r for i, r in enumerate(edit)]
+    by = paired(*two)["by_source"]  # each source has its own paired gain and SE
+    assert (by["s"]["gain"], by["s"]["rescues"], by["t"]["gain"], by["t"]["losses"]) == (1.0, 2, -0.5, 1)
+    assert by["t"]["se"] > 0 and by["s"]["problems"] == 2
     multi = [dict(r, id="p" + str(i // 2), k=i % 2) for i, r in enumerate(_rows([0, 1, 0, 0]))]
     assert summarize(multi)["pass_at_k"] == 0.5 and summarize(multi)["samples"] == 2
 
@@ -45,7 +50,7 @@ def test_practice_and_prompts():
     assert data.user_message(r) == r["problem"].rstrip() + \
         "\nPlease reason step by step, and put your final answer within \\boxed{}."
     a, b = data.balanced_sample(64, 1), data.balanced_sample(64, 1)
-    assert [x["id"] for x in a] == [x["id"] for x in b] and len({x["source"] for x in a}) == 2
+    assert [x["id"] for x in a] == [x["id"] for x in b] and len({x["source"] for x in a}) == len(data.PRACTICE)
 
 
 def test_manifest_is_deterministic():
@@ -94,6 +99,7 @@ def test_model_name_with_sampling_overrides():
     assert case.split_model("base@repetition_penalty=1.1,temperature=0.7") == \
         ("base", {"repetition_penalty": 1.1, "temperature": 0.7})
     assert case.split_model("base@hint=concise") == ("base", {"hint": "concise"})
+    assert case.split_model("base@max_tokens=12000") == ("base", {"max_tokens": 12000})  # an int for vLLM
 
 
 def test_choice_unboxed_answers():
@@ -236,7 +242,11 @@ def test_gpu_split_keeps_the_run_order(monkeypatch):
     smi = "0, 20000, 24564\n1, 1, 24564\n2, 3, 24564\n"  # GPU 0 holds another job
     monkeypatch.setattr(gen.subprocess, "run", lambda *a, **k: argparse.Namespace(stdout=smi))
     assert gen.free_gpus(["0", "1", "2"], 0.9) == ["1", "2"]
-    assert gen.free_gpus(["0"], 0.9) == ["0"]  # nothing free: left to vLLM to report
+    try:  # nothing free: stop at once with what holds the GPU, not minutes later in the engine's start
+        gen.free_gpus(["0"], 0.9)
+        raise AssertionError("busy GPU accepted")
+    except SystemExit as e:
+        assert "GPU 0 busy" in str(e)
 
 
 def test_compare_two_edits_on_shared_problems(tmp_path, monkeypatch, capsys):
@@ -246,11 +256,61 @@ def test_compare_two_edits_on_shared_problems(tmp_path, monkeypatch, capsys):
     (tmp_path / "c").mkdir()
     for name, correct in (("A__holdout256", [0, 1, 1, 0]), ("B__holdout", [1, 1, 1, 0, 1, 1])):
         (tmp_path / "c" / f"{name}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in _rows(correct)))
-    case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set="holdout256", set_b="holdout"))
+    case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set=["holdout256"], set_b=["holdout"]))
     out = capsys.readouterr().out
-    assert "4 answers on 4 shared problems" in out and "B better on 1, A better on 0" in out
+    assert "4 answers" in out and "(4 problems; B better on 1, A on 0)" in out
     try:
-        case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set="holdout256", set_b=None))
+        case.cmd_compare(argparse.Namespace(case="c", a="A", b="B", set=["holdout256"], set_b=None))
         raise AssertionError("missing run accepted")
     except SystemExit as e:
         assert "no run B__holdout256" in str(e)
+
+
+def test_run_adds_samples_and_split_is_disjoint(tmp_path, monkeypatch):
+    """`run --n` on an existing run generates only the new samples; `split` never reuses a problem of the case."""
+    import argparse
+
+    from wsp import gen
+    monkeypatch.setattr(case, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(case, "RUNS", tmp_path / "runs")
+    d = tmp_path / "cases" / "c"
+    (d / "sets").mkdir(parents=True)
+    ids = [r["id"] for r in data.balanced_sample(8, 0)]
+    (d / "sets" / "dev.json").write_text(json.dumps(ids))
+    (d / "case.json").write_text(json.dumps({"profile": "qwen35-0.8b-think", "subsets": {}, "parent": None}))
+    calls, digest = [], ["d1"]
+
+    def fake(model, items, prof, n=1, k0=0, **kw):
+        start = {r["id"]: k0.get(r["id"], 0) if isinstance(k0, dict) else k0 for r in items}
+        calls.append(sorted((r["id"], start[r["id"]]) for r in items))
+        return [{"id": r["id"], "k": k, "correct": True, "cut": False, "n_tokens": 1, "kind": "correct",
+                 "source": r["source"]} for r in items for k in range(start[r["id"]], n)]
+    monkeypatch.setattr(gen, "generate", fake)
+    monkeypatch.setattr(case, "model_path", lambda c, m: "unused")
+    monkeypatch.setattr(case, "model_digest", lambda c, m: digest[0])
+    run = argparse.Namespace(case="c", model="base", set="dev", n=1, force=False)
+    path = tmp_path / "runs" / "c" / "base__dev.jsonl"
+
+    def keys():
+        return [(r["id"], r["k"]) for r in map(json.loads, path.read_text().splitlines())]
+    case.cmd_run(run)
+    case.cmd_run(argparse.Namespace(**{**vars(run), "n": 3}))
+    case.cmd_run(argparse.Namespace(**{**vars(run), "n": 3}))  # complete: nothing generated
+    assert calls == [sorted((i, 0) for i in ids), sorted((i, 1) for i in ids)]
+    assert keys() == [(i, k) for i in ids for k in range(3)]
+    extra = data.balanced_sample(10, 5, exclude=ids)[0]["id"]  # the set changes: one problem out, one in
+    (d / "sets" / "dev.json").write_text(json.dumps(ids[1:] + [extra]))
+    case.cmd_run(argparse.Namespace(**{**vars(run), "n": 3}))
+    assert calls[-1] == [(extra, 0)] and keys() == [(i, k) for i in ids[1:] + [extra] for k in range(3)]
+    digest[0] = "d2"  # the model changed (an edit rewritten under its name): every sample again
+    case.cmd_run(argparse.Namespace(**{**vars(run), "n": 3}))
+    assert len(calls[-1]) == len(ids) and all(k == 0 for _, k in calls[-1])
+    (d / "sets" / "dev.json").write_text(json.dumps(ids))
+    case.cmd_split(argparse.Namespace(case="c", name="fit", n=10, practice=None, seed=1))
+    fit = json.loads((d / "sets" / "fit.json").read_text())
+    assert len(fit) == 10 and not set(fit) & set(ids)
+    try:
+        case.set_ids("c", "nope")
+        raise AssertionError("unknown set accepted")
+    except SystemExit as e:
+        assert "dev, fit" in str(e)

@@ -24,7 +24,7 @@ import re
 import shutil
 
 from . import data, profiles
-from .common import CASES, MODELS, REPO, RUNS, WORK, read_json, read_jsonl, write_json
+from .common import CASES, MODELS, REPO, RUNS, WORK, read_json, read_jsonl, write_json, write_jsonl
 from .stats import paired, summarize
 
 BASE = "base"
@@ -55,7 +55,11 @@ def set_ids(case, s):
     path = cdir(case) / "sets" / f"{s}.json"
     if path.exists():
         return read_json(path)
-    split, n = conf(case)["subsets"][s].split(":")
+    subsets = conf(case).get("subsets", {})
+    if s not in subsets:
+        have = sorted([p.stem for p in (cdir(case) / "sets").glob("*.json")] + list(subsets))
+        raise SystemExit(f"no set {s!r} in case {case}; sets: {', '.join(have)}")
+    split, n = subsets[s].split(":")
     ids, srcs = set_ids(case, split), [p.split("_")[0] for p in conf(case).get("practice", data.PRACTICE)]
     return [i for src in srcs for i in [i for i in ids if i.startswith(src)][: int(n) // len(srcs)]]
 
@@ -75,10 +79,12 @@ def split_model(model):
     """'base@repetition_penalty=1.1,hint=concise' -> ('base', {'repetition_penalty': 1.1, 'hint': 'concise'})"""
     name, _, over = model.partition("@")
     def val(v):
-        try:
-            return float(v)
-        except ValueError:
-            return v
+        for t in (int, float):  # max_tokens=12000 must stay an integer
+            try:
+                return t(v)
+            except ValueError:
+                pass
+        return v
     return name, {k: val(v) for k, v in (kv.split("=") for kv in over.split(",") if kv)}
 
 
@@ -93,15 +99,35 @@ def _sources_digest(spec):
     return h.hexdigest()
 
 
+def _spec_of(case, model):
+    """The spec a model of the case is built from (None: the pinned base itself)."""
+    parent = conf(case).get("parent")
+    if model == BASE:
+        return cdir(case) / parent if parent else None
+    spec = cdir(case) / "edits" / f"{model}.json"
+    if not spec.exists():
+        have = sorted(p.stem for p in spec.parent.glob("*.json"))
+        raise SystemExit(f"no edit {model!r} in case {case}; models: base, {', '.join(have) or '(no edits yet)'}")
+    return spec
+
+
+def model_digest(case, model):
+    """What a model's answers come from: the pinned base, or the spec chain and arrays it is built from."""
+    spec = _spec_of(case, model)
+    if spec is None:
+        p = profiles.get(conf(case)["profile"])
+        return hashlib.sha256(f"{p['hf']}@{p['revision']}".encode()).hexdigest()
+    return _sources_digest(spec)
+
+
 def model_path(case, model):
     """The case's starting model (the pinned base, or the parent edit built on it for a stacked case), or the built
     model of one of its edits. A built model is used only if it was built from the spec and arrays as they are now;
     otherwise it is built in a private directory and moved into place whole, so jobs started side by side never read a
     half-written model and an edit rewritten under the same name never runs with stale weights."""
-    parent = conf(case).get("parent")
-    if model == BASE and not parent:
+    spec = _spec_of(case, model)
+    if spec is None:
         return str(profiles.base_dir(conf(case)["profile"]))
-    spec = cdir(case) / parent if model == BASE else cdir(case) / "edits" / f"{model}.json"
     path, digest = MODELS / f"{case}__{model}", _sources_digest(spec)
     mark = path / "wsp_sources.sha256"
 
@@ -136,13 +162,17 @@ def _base_run_for(case, keys, tag):
     return None
 
 
-def _write_result(case, model, tag):
-    rows = read_jsonl(run_path(case, model, tag))
-    res = {"summary": summarize(rows), "paired": None}
+def _write_result(case, model, tag, generated=False):
+    """generated: the run's samples were (partly) made now; the frozen edit at that time is recorded, and kept when
+    the result is only re-paired later."""
+    rows, out = read_jsonl(run_path(case, model, tag)), cdir(case) / "results" / f"{model}__{tag}.json"
+    old = read_json(out) if out.exists() else {}
+    res = {"summary": summarize(rows), "paired": None,
+           "frozen": conf(case).get("frozen") if generated or "frozen" not in old else old["frozen"]}
     if model != BASE:
         base = _base_run_for(case, {(r["id"], r["k"]) for r in rows}, tag)
         res["paired"] = paired(base, rows) if base else None
-    write_json(cdir(case) / "results" / f"{model}__{tag}.json", res)
+    write_json(out, res)
     return res
 
 
@@ -170,20 +200,57 @@ def cmd_init(a):
 
 
 def cmd_run(a):
-    from .gen import generate  # noqa: PLC0415
+    from .gen import generate, merge_rows  # noqa: PLC0415
 
     prof = profiles.get(conf(a.case)["profile"])
     tag, items = set_items(a.case, a.set)
     out = run_path(a.case, a.model, tag)
     name, sampling = split_model(a.model)
-    if a.force or not out.exists():
-        generate(model_path(a.case, name), items, prof, n=a.n, out=out, sampling=sampling)
-    res = _write_result(a.case, a.model, tag)
+    digest, mark = model_digest(a.case, name), out.with_name(out.name + ".sources")
+    keep = out.exists() and not a.force and (not mark.exists() or mark.read_text() == digest)  # same model: extend
+    ids = {r["id"] for r in items}
+    old = [r for r in read_jsonl(out) if r["id"] in ids] if keep else []  # problems no longer in the set dropped
+    have = {}
+    for r in old:
+        have.setdefault(r["id"], set()).add(r["k"])
+    k0 = {i: min(set(range(a.n)) - have.get(i, set())) for i in ids if set(range(a.n)) - have.get(i, set())}
+    if k0 or not keep:  # only the missing samples: independent draws, equivalent to generating them all at once
+        todo = [r for r in items if r["id"] in k0]
+        new = generate(model_path(a.case, name), todo, prof, n=a.n, k0=k0, sampling=sampling) if todo else []
+        seen = {(r["id"], r["k"]) for r in old}
+        write_jsonl(out, merge_rows(items, [old, [r for r in new if (r["id"], r["k"]) not in seen]]))
+        mark.write_text(digest)
+    res = _write_result(a.case, a.model, tag, generated=bool(k0 or not keep))
     if a.model == BASE:  # pair every edit already run on this set
         for p in (RUNS / a.case).glob(f"*__{tag}.jsonl"):
             if not p.name.startswith(BASE + "__"):
                 _write_result(a.case, p.name.split("__")[0], tag)
     print(json.dumps(res["paired"] or res["summary"], indent=1))
+    p = res["paired"]
+    if p:
+        src = "; ".join(f"{k} {100 * v['gain']:+.1f} ± {100 * v['se']:.1f}" for k, v in sorted(
+            p["by_source"].items(), key=lambda kv: str(kv[0])))
+        print(f"{a.model} vs base on {tag}: {100 * p['gain']:+.1f} ± {100 * p['se']:.1f} ({p['problems']} problems; {src}); "
+              f"cut {_pct(p['base_cut'])} -> {_pct(p['edit_cut'])}; {cdir(a.case) / 'results' / f'{a.model}__{tag}.json'}")
+    else:
+        s = res["summary"]
+        print(f"{a.model} on {tag}: acc {_pct(s['acc'])}, cut {_pct(s['cut_share'])}, acc when finished "
+              f"{_pct(s['acc_when_finished'])}")
+
+
+def cmd_adopt(a):
+    """A published edit (e.g. the current champion) as a model of the case, to run and compare on the case's sets:
+    copied verbatim under adopted/<name>/ with a spec of no ops of its own stacked on it."""
+    from .edits import copy_parent, load_chain  # noqa: PLC0415
+    c, d = conf(a.case), cdir(a.case)
+    if load_chain(a.edit)[-1][0]["base"] != c["profile"]:
+        raise SystemExit("that edit is for another base")
+    spec = d / "edits" / f"{a.name}.json"
+    if spec.exists():
+        raise SystemExit(f"{spec} exists")
+    start = copy_parent(a.edit, d / "adopted" / a.name)
+    write_json(spec, {"name": a.name, "base": c["profile"], "parent": os.path.relpath(start, spec.parent), "ops": []})
+    print(f"{a.name}: run and compare it like an edit (to build on it, init a case with --parent instead)")
 
 
 def cmd_pairs(a):
@@ -212,7 +279,9 @@ def cmd_extract(a):
     from .probe import Probe  # noqa: PLC0415
 
     d = extract(Probe(model_path(a.case, BASE), a.device), read_json(scratch(a.case) / f"{a.pairs}.json"))
-    np.savez_compressed(scratch(a.case) / "directions.npz", **d)
+    out = scratch(a.case) / f"{a.out}.npz"
+    np.savez_compressed(out, **d)
+    print(f"directions -> {out}")
     table = layer_table(d)
     write_json(cdir(a.case) / "results" / "directions.json", table)
     for r in table:
@@ -229,19 +298,18 @@ def cmd_selectivity(a):
 
 
 def cmd_edit(a):
-    from .edits import dir_ablate_spec, low_rank_spec, spec_size  # noqa: PLC0415
+    from .edits import dir_ablate_spec, spec_size  # noqa: PLC0415
 
     c = conf(a.case)
     parent = os.path.relpath(cdir(a.case) / c["parent"], cdir(a.case) / "edits") if c.get("parent") else None
     layers = "-".join(map(str, a.layers))
-    if a.low_rank:
-        name = a.name or f"LR_{a.low_rank}_L{layers}_keep{a.keep:g}"
-        spec = low_rank_spec(c["profile"], a.layers, a.low_rank, a.keep, cdir(a.case) / "edits", name, parent)
-    else:
-        tgt = "" if a.targets == ["down_proj"] else "_" + "+".join(t.split("_")[0] for t in a.targets)
-        name = a.name or ("RAND_" if a.random_control else "") + f"L{layers}_k{a.topk}_a{a.alpha:g}{tgt}"
-        spec = dir_ablate_spec(scratch(a.case) / "directions.npz", c["profile"], a.layers, a.topk, a.alpha,
-                               cdir(a.case) / "edits", name, a.random_control, parent=parent, targets=a.targets)
+    tgt = "" if a.targets == ["down_proj"] else "_" + "+".join(t.split("_")[0] for t in a.targets)
+    name = a.name or ("RAND_" if a.random_control else "") + f"L{layers}_k{a.topk}_a{a.alpha:g}{tgt}"
+    dirs = scratch(a.case) / f"{a.dirs}.npz"
+    if not dirs.exists():
+        raise SystemExit(f"no directions file {dirs}: run `extract {a.case}` (with --out {a.dirs} for this name)")
+    spec = dir_ablate_spec(dirs, c["profile"], a.layers, a.topk, a.alpha,
+                           cdir(a.case) / "edits", name, a.random_control, parent=parent, targets=a.targets)
     tensors, payload = spec_size(spec)
     print(f"{spec}: {tensors} tensors, payload {payload} bytes")
 
@@ -255,18 +323,37 @@ def compare(rows_a, rows_b):
 
 
 def cmd_compare(a):
-    runs = [run_path(a.case, m, s) for m, s in ((a.a, a.set), (a.b, a.set_b or a.set))]
-    for r in runs:
-        if not r.exists():
-            have = sorted(p.stem for p in (RUNS / a.case).glob("*.jsonl"))
-            raise SystemExit(f"no run {r.stem}; runs of this case: {', '.join(have)}")
-    p = compare(*(read_jsonl(r) for r in runs))
-    print(f"{a.b} vs {a.a}: {p['n']} answers on {p['problems']} shared problems")
-    print(f"  acc {_pct(p['base_acc'])} -> {_pct(p['edit_acc'])}, gain {100 * p['gain']:+.1f} ± {100 * p['se']:.1f} "
-          f"(SE by problem); {a.b} better on {p['rescues']}, {a.a} better on {p['losses']}")
+    rows = []
+    for m, sets in ((a.a, a.set), (a.b, a.set_b or a.set)):
+        runs = [run_path(a.case, m, s) for s in sets]
+        for r in runs:
+            if not r.exists():
+                have = sorted(p.stem for p in (RUNS / a.case).glob("*.jsonl"))
+                raise SystemExit(f"no run {r.stem}; runs of this case: {', '.join(have)}")
+        rows.append([x for r in runs for x in read_jsonl(r)])
+    p = compare(*rows)
+
+    def line(v):
+        return (f"{_pct(v['base_acc'])} -> {_pct(v['edit_acc'])}, gain {100 * v['gain']:+.1f} ± {100 * v['se']:.1f}"
+                f" ({v['problems']} problems; {a.b} better on {v['rescues']}, {a.a} on {v['losses']})")
+    print(f"{a.b} vs {a.a} on {' + '.join(a.set)}: {p['n']} answers (SE by problem)")
+    print(f"  all: {line(p)}")
     print(f"  cut {_pct(p['base_cut'])} -> {_pct(p['edit_cut'])}")
     for src, v in sorted(p["by_source"].items(), key=lambda kv: str(kv[0])):
-        print(f"  {src}: {_pct(v['base'])} -> {_pct(v['edit'])} (n {v['n']})")
+        print(f"  {src}: {line(v)}")
+
+
+def cmd_split(a):
+    """A new split of practice problems, disjoint from every split the case has (e.g. problems to fit an edit on,
+    or a fresh confirmation set)."""
+    d = cdir(a.case)
+    if (d / "sets" / f"{a.name}.json").exists() or a.name in conf(a.case).get("subsets", {}):
+        raise SystemExit(f"set {a.name} exists")
+    used = {i for p in (d / "sets").glob("*.json") for i in read_json(p)}
+    src = tuple(a.practice or conf(a.case).get("practice", data.PRACTICE))
+    ids = [r["id"] for r in data.balanced_sample(a.n, a.seed, exclude=used, sources=src)]
+    write_json(d / "sets" / f"{a.name}.json", ids)
+    print(f"{a.name}: {len(ids)} problems from {', '.join(src)}, none in the other splits")
 
 
 def cmd_freeze(a):
@@ -306,7 +393,7 @@ def _results(case):
 def case_tables(case):
     res = _results(case)
     lines = [f"# Results: {case} (generated by `python -m wsp.case report`)", ""]
-    if case != "screening":
+    if (cdir(case) / "case.json").exists() and case != "screening":
         c = conf(case)
         lines += [f"Profile `{c['profile']}`, contrast `{c['contrast']}`, frozen edit: `{c.get('frozen')}`.", ""]
     lines += ["| model | set | n | acc | cut share | acc when finished |", "|---|---|---|---|---|---|"]
@@ -323,6 +410,8 @@ def case_tables(case):
                   "| edit | set | base -> edit | gain ± SE | rescued / lost | cut base -> edit | selectivity |",
                   "|---|---|---|---|---|---|---|"]
         for m, t, p in rows:
+            if t.startswith("holdout") and res[(m, t)].get("frozen", m) != m:
+                t += " (not frozen)"
             s = sel.get(m)
             s = f"{s['logp_good']:.3f} / {s['logp_bad']:.3f}" if s else ""
             lines.append(f"| {m} | {t} | {_pct(p['base_acc'])} -> {_pct(p['edit_acc'])} | "
@@ -382,30 +471,38 @@ def main():
                                 "the case starts from that model"}),
       help="create a case and its practice splits")
     p("run", case, (["model"], {"help": "base or an edit name"}), (["set"], {"help": "case set or bench:<name>"}),
-      (["--n"], {"type": int, "default": 1, "help": "samples per problem"}), (["--force"], {"action": "store_true"}),
+      (["--n"], {"type": int, "default": 1, "help": "samples per problem; an existing run of the same model is "
+                                                     "extended with the missing samples only"}),
+      (["--force"], {"action": "store_true", "help": "regenerate every sample"}),
       help="generate + grade, write results (paired with base when possible)")
     p("pairs", case, (["--sets"], {"nargs": "+", "required": True, "help": "base runs to take good traces from"}),
       (["--exclude"], {"nargs": "*", "default": [], "help": "sets whose problems are not used"}),
       (["--exclude-pairs"], {"nargs": "*", "default": [], "help": "pair files whose traces are not reused"}),
       (["--n"], {"type": int, "default": 48}), (["--per-trace"], {"type": int, "default": 3}),
       (["--seed"], {"type": int, "default": 0}), (["--out"], {"default": "pairs"}), help="build contrast pairs")
-    p("extract", case, (["--pairs"], {"default": "pairs"}), dev, help="directions + writer scores -> directions.npz")
+    p("extract", case, (["--pairs"], {"default": "pairs"}), dev,
+      (["--out"], {"default": "directions", "help": "name of the directions file (several can be kept)"}),
+      help="directions + writer scores -> $WSP_WORK/cases/<case>/<out>.npz")
     p("selectivity", case, (["model"], {}), (["--pairs"], {"default": "pairs_heldout"}), dev,
       help="log-prob of held-out good / bad continuations")
     p("edit", case, (["--layers"], {"type": int, "nargs": "+", "required": True}),
       (["--topk"], {"type": int, "default": 64}), (["--alpha"], {"type": float, "default": 6.0}),
       (["--random-control"], {"action": "store_true"}), (["--name"], {}),
       (["--targets"], {"nargs": "+", "default": ["down_proj"], "choices": ["down_proj", "o_proj"],
-                       "help": "matrices the direction is ablated from (o_proj: all columns)"}),
-      (["--low-rank"], {"choices": ["gate_proj", "up_proj", "down_proj"],
-                        "help": "instead: replace that MLP matrix by its rank-k approximation (LASER; research only, "
-                                "low_rank is not an op rules.json allows)"}),
-      (["--keep"], {"type": float, "default": 0.1, "help": "fraction of the rank kept by --low-rank"}),
-      help="write an edit spec (dir_ablate on the case's directions, or --low-rank)")
+                       "help": "matrices the direction is ablated from (o_proj: each layer's attention output, all "
+                               "columns, also linear attention's out_proj)"}),
+      (["--dirs"], {"default": "directions", "help": "directions file written by extract --out"}),
+      help="write a dir_ablate spec on the case's directions (other ops: by hand, see the skill)")
     p("compare", case, (["a"], {"help": "base or an edit name"}), (["b"], {"help": "base or an edit name"}),
-      (["set"], {"help": "the set both were run on"}),
-      (["--set-b"], {"help": "B's set when it differs (e.g. a subset): only the shared problems count"}),
+      (["set"], {"nargs": "+", "help": "the set(s) both were run on; several are pooled"}),
+      (["--set-b"], {"nargs": "+", "help": "B's set(s) when they differ (e.g. a subset): only the shared problems count"}),
       help="paired comparison of two models' runs on the problems both have (gain of B over A)")
+    p("adopt", case, (["edit"], {"help": "a published edit.json, e.g. the task's champion/edit/edit.json"}),
+      (["--name"], {"default": "champion"}),
+      help="add a published edit as a model of the case (to compare against it on the case's sets)")
+    p("split", case, (["name"], {}), (["--n"], {"type": int, "required": True}),
+      (["--practice"], {"nargs": "+", "help": "sources (default: the case's)"}), (["--seed"], {"type": int, "default": 11}),
+      help="add a split disjoint from the case's other splits")
     p("freeze", case, (["edit"], {}), help="record the frozen edit before HOLDOUT / benchmarks")
     p("screen", (["profiles"], {"nargs": "+"}), (["--set"], {"default": "screen64"}),
       help="base runs of several profiles on cases/screening/sets/<set>.json")

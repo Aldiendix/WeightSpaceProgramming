@@ -10,7 +10,8 @@ submitted ("Submitting").
 ## Layout
 ```
 wsp/            toolkit (python -m wsp.<module> -h for each CLI)
-  case.py       case workflow: screen, init, run, pairs, extract, selectivity, edit, compare, freeze, report
+  case.py       case workflow: screen, init, split, adopt, run, pairs, extract, selectivity, edit, compare, freeze, report
+  fit.py        gains fitted on the model's own correct answers (self-distillation), written as scale_cols
   profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
   data.py       practice sets (no benchmarks)              grade.py  graders, failure kinds
   gen.py        vLLM generation with per-problem seeds      stats.py  summaries, paired comparisons

@@ -1,12 +1,15 @@
 """Upload a finished task's deliverables to R2 by the fixed protocol in rules.json -> upload.
 
-python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run]
+python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run | --status]
 
 1. package under $WSP_WORK/deliver/<case>__<edit>/: cases/<case>/edits/<edit>.json -> edit/edit.json (base, parent,
    ops; a parent is referenced as <start>/edit.json, start = parent or champion, not uploaded: it is already
-   published) with its arrays in edit/edit.npz, and the report -> edit/REPORT.md (default: the case's NOTES.md +
-   RESULTS.md);
+   published) with every array an op reads in edit/edit.npz (none: no edit.npz; inline lists stay in edit.json),
+   and the report -> edit/REPORT.md: --report or the case's NOTES.md, then the case's results table (every run,
+   paired, holdout runs made before the edit was frozen marked). The package is rebuilt on every call: change the
+   case's records or pass --report, not the package. An organizer's check runs on the package's edit/ directory;
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
+--status reads the remote manifest back and says whether it is this package; nothing is uploaded.
 Credentials: --task (the subnet's task.json, section "r2": endpoint, bucket, prefix, access_key_id,
 secret_access_key, session_token) or R2_* environment variables.
 """
@@ -30,10 +33,12 @@ def package(case, edit, report=None):
     out = WORK / "deliver" / f"{case}__{edit}"
     shutil.rmtree(out, ignore_errors=True)
     export(CASES / case / "edits" / f"{edit}.json", out / "edit", "edit", parents=False)
-    parts = [Path(report)] if report else [p for p in (CASES / case / "NOTES.md", CASES / case / "RESULTS.md") if p.exists()]
-    if not parts:
+    from .case import case_tables  # noqa: PLC0415
+    src = Path(report) if report else CASES / case / "NOTES.md"
+    if not src.exists():
         raise SystemExit("no report: pass --report or write the case's NOTES.md")
-    (out / "edit" / "REPORT.md").write_text("\n\n".join(p.read_text() for p in parts))
+    (out / "edit" / "REPORT.md").write_text(src.read_text().rstrip() + "\n\n" + case_tables(case))
+    print(f"[upload] package {out / 'edit'} (REPORT.md: {src} + the case's results table)", flush=True)
     files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != "manifest.json")
     manifest = {"schema": RULES["upload"]["schema"],
                 "files": [{"path": p.relative_to(out).as_posix(), "size": p.stat().st_size, "sha256": _sha(p)}
@@ -75,18 +80,44 @@ def upload(out, manifest, endpoint, bucket, prefix, creds, client=None):
     return [key(f["path"]) for f in manifest["files"]] + [key("manifest.json")]
 
 
+def status(manifest, endpoint, bucket, prefix, creds, client=None):
+    """The remote manifest, and whether it is this package's."""
+    if client is None:
+        import boto3  # noqa: PLC0415
+        client = boto3.client("s3", endpoint_url=endpoint, region_name="auto", aws_access_key_id=creds[0],
+                              aws_secret_access_key=creds[1], aws_session_token=creds[2])
+    key = "/".join(x.strip("/") for x in (prefix, "manifest.json") if x.strip("/"))
+    try:
+        obj = client.get_object(Bucket=bucket, Key=key)
+    except Exception as ex:  # noqa: BLE001 - nothing uploaded yet, or no access
+        return None, f"no manifest at r2://{bucket}/{key} ({type(ex).__name__})"
+    remote = json.loads(obj["Body"].read())
+    when = obj.get("LastModified")
+    same = remote == manifest
+    return remote, (f"r2://{bucket}/{key} ({when}): " + ("this package" if same else "another package (differs from "
+                                                                                       "this one)"))
+
+
 def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("case")
     ap.add_argument("edit")
-    ap.add_argument("--report", help="report file (default: the case's NOTES.md + RESULTS.md)")
+    ap.add_argument("--report", help="report text (default: the case's NOTES.md); the results table is appended")
     ap.add_argument("--task", help="the subnet's task.json (R2 target and temporary credentials)")
     ap.add_argument("--dry-run", action="store_true", help="package and print the manifest only")
+    ap.add_argument("--status", action="store_true", help="compare the remote manifest with this package; no upload")
     a = ap.parse_args()
     out, manifest = package(a.case, a.edit, a.report)
+    if a.status:
+        print(f"[upload] {status(manifest, *target(a.task))[1]}")
+        return
     print(json.dumps(manifest, indent=1))
     if not a.dry_run:
-        print("\n".join(upload(out, manifest, *target(a.task))))
+        endpoint, bucket, prefix, creds = target(a.task)
+        keys = upload(out, manifest, endpoint, bucket, prefix, creds)
+        print("\n".join(f"[upload] r2://{bucket}/{k}" for k in keys))
+        print(f"[upload] verified: the remote manifest equals the local one and its {len(manifest['files'])} files "
+              "have their sizes; the last complete upload before the deadline counts")
 
 
 if __name__ == "__main__":

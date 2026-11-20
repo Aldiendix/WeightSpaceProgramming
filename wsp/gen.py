@@ -2,6 +2,7 @@
 salt), so a base run and an edited run of the same problems are paired, also when a run is split over several
 GPUs."""
 import os
+import signal
 import subprocess
 import time
 
@@ -29,20 +30,32 @@ def visible_gpus():
     return [str(i) for i, line in enumerate(out.splitlines()) if line.startswith("GPU ")]
 
 
+def _smi(*query):
+    out = subprocess.run(["nvidia-smi", *query, "--format=csv,noheader,nounits"], capture_output=True, text=True,
+                         timeout=30, check=False).stdout
+    return [[x.strip() for x in line.split(",")] for line in out.splitlines() if line.strip()]
+
+
 def free_gpus(gpus, gpu_mem):
     """The GPUs with room for a vLLM process taking gpu_mem of the memory: one busy with another job is skipped (ids
-    are matched to nvidia-smi's numbering; without it, or with non-numeric ids, all are kept)."""
+    are matched to nvidia-smi's numbering; without it, or with non-numeric ids, all are kept). None free: stop with
+    what holds them, rather than failing minutes later in the engine's start."""
     try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=index,memory.used,memory.total", "--format=csv,noheader,nounits"],
-                             capture_output=True, text=True, timeout=30, check=False).stdout
-        used = {i.strip(): float(u) / float(t) for i, u, t in (line.split(",") for line in out.splitlines() if line.strip())}
+        used = {i: float(u) / float(t) for i, u, t in _smi("--query-gpu=index,memory.used,memory.total")}
     except (OSError, subprocess.SubprocessError, ValueError):
         return gpus
     free = [g for g in gpus if used.get(g.strip(), 0.0) <= 1 - gpu_mem]
+    if not free:
+        try:
+            apps = "; ".join(f"pid {p} {n} {m} MiB" for p, n, m in _smi("--query-compute-apps=pid,process_name,used_memory"))
+        except (OSError, subprocess.SubprocessError, ValueError):
+            apps = ""
+        raise SystemExit(f"GPU {','.join(gpus)} busy ({', '.join(f'{100 * used.get(g, 0):.0f}%' for g in gpus)} of the "
+                         f"memory in use; {apps or 'no process visible: an engine left by a killed run holds it'}). "
+                         "Wait for that job, stop it, or choose other GPUs with CUDA_VISIBLE_DEVICES.")
     if len(free) < len(gpus):
-        print(f"[gen] GPUs {','.join(g for g in gpus if g not in free)} are busy; using {','.join(free) or 'none'}",
-              flush=True)
-    return free or gpus[:1]
+        print(f"[gen] GPUs {','.join(g for g in gpus if g not in free)} are busy; using {','.join(free)}", flush=True)
+    return free
 
 
 def split_items(items, k):
@@ -56,41 +69,73 @@ def merge_rows(items, shards):
     return sorted((r for rows in shards for r in rows), key=lambda r: (pos[r["id"]], r["k"]))
 
 
+def _isolate():
+    """Worker start: a process group of its own (the vLLM engine processes join it) that is killed whole when the
+    worker is stopped or its parent dies, so a stopped run never leaves an engine holding the GPU."""
+    os.setsid()
+    try:
+        import ctypes  # noqa: PLC0415
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG: parent died -> TERM
+    except OSError:
+        pass
+    signal.signal(signal.SIGTERM, lambda *_: os.killpg(0, signal.SIGKILL))
+
+
+def _kill_groups(pgids):
+    for pgid in pgids:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
 def _shard(gpu, smi_ids, args, kw):
     if smi_ids:  # ids numbered as nvidia-smi lists them
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
-    return _generate(*args, **kw)
+    return os.getpgid(0), _generate(*args, **kw)
 
 
-def generate(model, items, profile, n=1, out=None, salt="s0", gpu_mem=0.90, max_tokens=None, sampling=None):
-    """sampling: overrides of the profile's sampling (decoding baselines), plus "hint": a data.HINTS name,
+def generate(model, items, profile, n=1, out=None, salt="s0", gpu_mem=0.90, max_tokens=None, sampling=None, k0=0):
+    """Samples k0..n-1 of every problem (k0: a number, or {id: first missing sample} to add samples to an existing
+    run). Seeds depend only on (id, k, salt); vLLM's outputs still vary with the batch, so samples are independent
+    draws: a run extended later is equivalent to one generated at once, not identical to it.
+    sampling: overrides of the profile's sampling (decoding baselines), plus "hint": a data.HINTS name,
     "penalize": words joined by "+" whose first tokens get logit bias "bias" (default -2), "think": 0 / 1 to switch
     the chat template's thinking mode while keeping the profile's sampling and token limit.
-    With several visible GPUs the problems are split over them (one vLLM process each); to run independent jobs side
-    by side, give each its own CUDA_VISIBLE_DEVICES."""
-    args = (model, items, profile)
-    kw = {"n": n, "salt": salt, "gpu_mem": gpu_mem, "max_tokens": max_tokens, "sampling": sampling}
+    The problems are split over the visible GPUs that are free (one vLLM process each, in a process group that is
+    killed with the run); to run independent jobs side by side, give each its own CUDA_VISIBLE_DEVICES. The workers
+    are spawned: a script calling this must do so under `if __name__ == "__main__":`."""
+    kw = {"n": n, "k0": k0, "salt": salt, "gpu_mem": gpu_mem, "max_tokens": max_tokens, "sampling": sampling}
     smi_ids = "CUDA_VISIBLE_DEVICES" not in os.environ
     gpus = visible_gpus()
-    gpus = (free_gpus(gpus, gpu_mem) if len(gpus) > 1 else gpus)[: len(items)]
-    if len(gpus) < 2:
-        rows = _generate(*args, **kw)
+    gpus = free_gpus(gpus, gpu_mem)[: len(items)] if gpus else []
+    if not gpus:  # no GPU listed (nvidia-smi missing): let vLLM decide
+        rows = _generate(model, items, profile, **kw)
     else:
         import multiprocessing as mp  # noqa: PLC0415
         from concurrent.futures import ProcessPoolExecutor  # noqa: PLC0415
 
-        print(f"[gen] {len(items)} problems over GPUs {','.join(gpus)}", flush=True)
-        with ProcessPoolExecutor(len(gpus), mp_context=mp.get_context("spawn")) as ex:
+        if len(gpus) > 1:
+            print(f"[gen] {len(items)} problems over GPUs {','.join(gpus)}", flush=True)
+        ex = ProcessPoolExecutor(len(gpus), mp_context=mp.get_context("spawn"), initializer=_isolate)
+        try:
             futs = [ex.submit(_shard, g, smi_ids, (model, part, profile), kw)
                     for g, part in zip(gpus, split_items(items, len(gpus)))]
-            rows = merge_rows(items, [f.result() for f in futs])
+            done = [f.result() for f in futs]
+        except BaseException:  # interrupted or a shard failed: stop every worker with its engine
+            _kill_groups(list(getattr(ex, "_processes", None) or {}))  # a worker's group id is its pid
+            ex.shutdown(wait=False, cancel_futures=True)
+            raise
+        ex.shutdown()
+        _kill_groups(pgid for pgid, _ in done)  # whatever an engine left behind in a finished worker's group
+        rows = merge_rows(items, [r for _, r in done])
     if out:
         write_jsonl(out, rows)
     return rows
 
 
-def _generate(model, items, profile, n=1, salt="s0", gpu_mem=0.90, max_tokens=None, sampling=None):
+def _generate(model, items, profile, n=1, k0=0, salt="s0", gpu_mem=0.90, max_tokens=None, sampling=None):
     from vllm import LLM, SamplingParams  # noqa: PLC0415
 
     sampling = dict(sampling or {})
@@ -118,7 +163,7 @@ def _generate(model, items, profile, n=1, salt="s0", gpu_mem=0.90, max_tokens=No
     for r in items:
         prompt = tok.apply_chat_template([{"role": "user", "content": user_message(r, hint)}], tokenize=False,
                                          add_generation_prompt=True, enable_thinking=profile["thinking"])
-        reqs += [(r, k, prompt) for k in range(n)]
+        reqs += [(r, k, prompt) for k in range(k0.get(r["id"], 0) if isinstance(k0, dict) else k0, n)]
     t0 = time.time()
     outs = llm.generate([p for _, _, p in reqs], [SamplingParams(seed=stable_seed(r["id"], k, salt), **samp)
                                                   for r, k, _ in reqs])

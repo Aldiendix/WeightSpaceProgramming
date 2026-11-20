@@ -243,14 +243,26 @@ def build(spec_path, out_dir, diff_dir=None, base_dir=None):
     return out_dir, man
 
 
+def attn_out(index, prefix, layer):
+    """The tensor a layer's attention writes the residual with: o_proj, or the output projection of another attention
+    kind (e.g. linear attention's out_proj in hybrid models)."""
+    pat = re.compile(re.escape(f"{prefix}layers.{layer}.") + r"[a-z_]*attn[a-z_]*\.(o_proj|out_proj)\.weight$")
+    found = sorted(n for n in index if pat.match(n))
+    if not found:
+        raise ValueError(f"no attention output projection in layer {layer}")
+    return found[0]
+
+
 def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random_control=False, seed=0, parent=None,
                     targets=("down_proj",)):
     """Spec ablating each layer's direction from its MLP down_proj, restricted to the top-k writer neurons, and/or
-    from its attention o_proj (all columns: heads have no writer score).
+    from its attention output (o_proj, or the layer's other attention output: all columns, heads have no writer
+    score).
     random_control: a random unit direction orthogonal to u instead (same layers, columns and alpha).
     parent: path of the spec this one stacks on, relative to out_dir."""
     d = np.load(directions)
-    prefix = decoder_prefix(tensor_index(profiles.base_dir(base)))
+    index = tensor_index(profiles.base_dir(base))
+    prefix = decoder_prefix(index)
     rng, arrays, ops = np.random.default_rng(seed), {}, []
     for l in layers:
         u = d["U"][l].astype(np.float32)
@@ -259,7 +271,7 @@ def dir_ablate_spec(directions, base, layers, topk, alpha, out_dir, name, random
             u = (r - (r @ u) * u) / np.linalg.norm(r - (r @ u) * u)
         arrays[f"u{l}"] = u
         if "o_proj" in targets:
-            ops.append({"op": "dir_ablate", "tensor": f"{prefix}layers.{l}.self_attn.o_proj.weight",
+            ops.append({"op": "dir_ablate", "tensor": attn_out(index, prefix, l),
                         "u": f"{name}.npz#u{l}", "alpha": alpha, "side": "out"})
         if "down_proj" not in targets:
             continue
@@ -293,14 +305,3 @@ def spec_size(spec_path):
             a = _resolve(v, spec_path.parent)
             payload += a.nbytes if isinstance(v, str) else a.size * (4 if a.dtype.kind == "f" else 8)
     return len({op["tensor"] for op in spec["ops"]}), payload
-
-
-def low_rank_spec(base, layers, matrix, keep, out_dir, name, parent=None):
-    """Spec replacing each layer's MLP `matrix` (gate_proj / up_proj / down_proj) by its rank-k approximation."""
-    prefix = decoder_prefix(tensor_index(profiles.base_dir(base)))
-    spec = {"name": name, "base": base,
-            "ops": [{"op": "low_rank", "tensor": f"{prefix}layers.{l}.mlp.{matrix}.weight", "keep": keep} for l in layers]}
-    if parent:
-        spec["parent"] = parent
-    write_json(Path(out_dir) / f"{name}.json", spec)
-    return Path(out_dir) / f"{name}.json"

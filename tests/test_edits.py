@@ -134,3 +134,34 @@ def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
     _, m1 = build(spec, tmp_path / "m1", base_dir=tiny_model)
     _, m2 = build(out, tmp_path / "m2", base_dir=tiny_model)
     assert [t["edited_sha256"] for t in m1["tensors"]] == [t["edited_sha256"] for t in m2["tensors"]]
+
+
+def test_adopted_edit_builds_the_published_model(tmp_path, tiny_model, monkeypatch):
+    """`adopt` adds a published edit (e.g. the champion) to a case as a model with no ops of its own: building it gives
+    exactly the published edit's weights."""
+    import argparse
+
+    from wsp import case as C
+    from wsp import profiles
+    pub = tmp_path / "task" / "champion" / "edit"
+    pub.mkdir(parents=True)
+    np.savez(pub / "edit.npz", u=np.array([1.0, 0, 0, 0], np.float32))
+    (pub / "edit.json").write_text(json.dumps({"base": "b", "ops": [
+        {"op": "dir_ablate", "tensor": T, "u": "edit.npz#u", "alpha": 1.0}]}))
+    d = tmp_path / "cases" / "c"
+    (d / "edits").mkdir(parents=True)
+    (d / "case.json").write_text(json.dumps({"profile": "b", "parent": None}))
+    monkeypatch.setattr(C, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(profiles, "base_dir", lambda name: tiny_model)
+    C.cmd_adopt(argparse.Namespace(case="c", edit=str(pub / "edit.json"), name="champion"))
+    _, a = build(d / "edits" / "champion.json", tmp_path / "m1", base_dir=tiny_model)
+    _, b = build(pub / "edit.json", tmp_path / "m2", base_dir=tiny_model)
+    assert [t["edited_sha256"] for t in a["tensors"]] == [t["edited_sha256"] for t in b["tensors"]]
+
+
+def test_attention_output_of_hybrid_layers():
+    from wsp.edits import attn_out
+    idx = {f"m.layers.{l}.{n}.weight": "x" for l, n in ((0, "linear_attn.out_proj"), (0, "mlp.down_proj"),
+                                                        (3, "self_attn.o_proj"), (3, "self_attn.q_proj"))}
+    assert attn_out(idx, "m.", 0) == "m.layers.0.linear_attn.out_proj.weight"
+    assert attn_out(idx, "m.", 3) == "m.layers.3.self_attn.o_proj.weight"

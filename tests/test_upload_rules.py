@@ -4,6 +4,7 @@ import re
 
 import numpy as np
 
+from wsp import case as wsp_case
 from wsp import upload
 from wsp.rules import RULES, doc
 
@@ -31,6 +32,7 @@ def test_package_and_upload(tmp_path, monkeypatch):
         {"op": "dir_ablate", "tensor": "t", "u": "e.npz#u15", "cols": "e.npz#cols15", "alpha": 6}]}))
     (case / "NOTES.md").write_text("notes")
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(wsp_case, "CASES", tmp_path / "cases")
     monkeypatch.setattr(upload, "WORK", tmp_path / "work")
     out, man = upload.package("c", "e")
     assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/edit.npz", "edit/REPORT.md"}
@@ -51,6 +53,7 @@ def test_upload_references_parent_without_copying_it(tmp_path, monkeypatch):
                                                        "ops": []}))
     (case / "NOTES.md").write_text("n")
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(wsp_case, "CASES", tmp_path / "cases")
     monkeypatch.setattr(upload, "WORK", tmp_path / "work")
     out, man = upload.package("c", "e")
     assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/REPORT.md"}  # nothing else
@@ -64,6 +67,7 @@ def test_upload_references_the_start_by_its_task_directory(tmp_path, monkeypatch
         (task / d / "edit").mkdir(parents=True)
         (task / d / "edit" / "edit.json").write_text(json.dumps({"base": "b", "ops": []}))
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(wsp_case, "CASES", tmp_path / "cases")
     monkeypatch.setattr(upload, "WORK", tmp_path / "work")
     for d in ("parent", "champion"):
         case = tmp_path / "cases" / d
@@ -101,3 +105,31 @@ def test_protocol():
     assert set(RULES["upload"]["required"]) <= set(RULES["upload"]["files"])
     text = doc()
     assert "payload" in text and RULES["upload"]["schema"] in text
+
+
+def test_report_carries_every_result_and_status_reads_the_upload_back(tmp_path, monkeypatch):
+    """The packaged REPORT.md ends with the case's results table, where a holdout run made before its edit was frozen
+    is marked; --status tells this package from another one."""
+    case = tmp_path / "cases" / "c"
+    (case / "edits").mkdir(parents=True)
+    (case / "results").mkdir()
+    (case / "case.json").write_text(json.dumps({"profile": "p", "contrast": "loop", "frozen": "e"}))
+    (case / "edits" / "e.json").write_text(json.dumps({"name": "e", "base": "b", "ops": []}))
+    (case / "NOTES.md").write_text("notes")
+    paired = {"base_acc": 0.5, "edit_acc": 0.6, "gain": 0.1, "se": 0.02, "rescues": 3, "losses": 1, "base_cut": 0.2,
+              "edit_cut": 0.1}
+    for model, frozen in (("e", None), ("f", "e")):  # e ran on holdout before it was frozen; f is another edit
+        (case / "results" / f"{model}__holdout256.json").write_text(json.dumps(
+            {"summary": {}, "paired": paired, "frozen": frozen}))
+    monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(wsp_case, "CASES", tmp_path / "cases")
+    monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    out, man = upload.package("c", "e")
+    report = (out / "edit" / "REPORT.md").read_text()
+    assert report.startswith("notes") and report.count("holdout256 (not frozen)") == 2
+    s3 = FakeS3()
+    assert upload.status(man, "e", "bucket", "p", (None,) * 3, client=s3)[0] is None  # nothing uploaded yet
+    upload.upload(out, man, "e", "bucket", "p", (None,) * 3, client=s3)
+    assert "this package" in upload.status(man, "e", "bucket", "p", (None,) * 3, client=s3)[1]
+    other = {**man, "files": man["files"][:1]}
+    assert "another package" in upload.status(other, "e", "bucket", "p", (None,) * 3, client=s3)[1]

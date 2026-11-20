@@ -9,20 +9,17 @@ practice:<name>   problems the editor may use freely (selection, probing, DEV/HO
                   checks it).
 bench:<name>      benchmark items, never in the toolkit: the organizer supplies them as $WSP_WORK/data/bench_<name>.jsonl
                   (each item with its "task"); the toolkit holds no loader for any benchmark
-private:<name>    organizer-only sets from $WSP_PRIVATE_DIR (never in the repo)
 """
 import gzip
 import hashlib
 import json
-import os
 import random
 import re
-from pathlib import Path
 
 from .common import DATA, REPO, read_jsonl, write_jsonl
 
 PRACTICE_DIR = REPO / "data" / "practice"  # the sets listed in the docstring above
-PRACTICE = ("gsm8k_train", "math_train")    # default sources of case splits (math); ifsynth / mmlupro on request
+PRACTICE = ("gsm8k_train", "math_train")    # default sources of case splits (math); the others on request
 
 PROMPTS = {
     "math": "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}.",
@@ -80,15 +77,6 @@ def _bench(name):
 def _practice(name):
     rows = read_jsonl(PRACTICE_DIR / f"{name}.jsonl.gz")
     for r in rows:
-        r.setdefault("task", "math")
-    return rows
-
-
-def _private(name):
-    """Organizer-only sets: $WSP_PRIVATE_DIR/<name>.jsonl with items like the benchmarks' (incl. `task`)."""
-    rows = read_jsonl(Path(os.environ["WSP_PRIVATE_DIR"]) / f"{name}.jsonl")
-    for r in rows:
-        r.setdefault("source", name)
         r.setdefault("task", "math")
     return rows
 
@@ -156,12 +144,10 @@ def drop_bench_overlap():
 
 
 def load(spec):
-    """'bench:<name>', 'private:<name>', or 'practice:<name>' / 'practice:all'."""
+    """'bench:<name>', or 'practice:<name>' / 'practice:all'."""
     kind, _, name = spec.partition(":")
     if kind == "bench":
         return _bench(name)
-    if kind == "private":
-        return _private(name)
     if kind == "practice":
         names = sorted(p.name.split(".")[0] for p in PRACTICE_DIR.glob("*.jsonl.gz")) if name == "all" else [name]
         return [r for n in names for r in _practice(n)]
