@@ -90,12 +90,16 @@ def load_chain(spec_path):
 PUBLISHED = "edit.json"  # a published edit is a directory edit/ with edit.json (+ edit.npz, parent/, ...)
 
 
+def _published(p):
+    return p.name == PUBLISHED and p.parent.name != "edits"  # a case's own edits live in edits/
+
+
 def start_dir(spec_path):
     """The directory name an inherited edit keeps in a case, which an upload also uses to reference it
     ("<name>/edit.json"): a published edit keeps the name of the directory holding its edit/ (in a task, parent/ or
     champion/); any other spec goes to parent/."""
     p = Path(spec_path)
-    if p.name != PUBLISHED:
+    if not _published(p):
         return "parent"
     return (p.parent.parent if p.parent.name == "edit" else p.parent).name
 
@@ -106,40 +110,88 @@ def copy_parent(spec_path, dst):
     import shutil  # noqa: PLC0415
 
     spec_path = Path(spec_path)
-    if spec_path.name == PUBLISHED:
+    if _published(spec_path):
         shutil.copytree(spec_path.parent, dst, dirs_exist_ok=True)
         return Path(dst) / PUBLISHED
-    return export(spec_path, dst, json.load(open(spec_path)).get("name") or spec_path.stem)
+    name = json.load(open(spec_path)).get("name") or spec_path.stem
+    return export(spec_path, dst, name if f"{name}.json" != PUBLISHED else f"{name}_local")  # never taken as published
 
 
-def export(spec_path, dst, name, parents=True):
-    """Copy a spec into dst as <name>.json (+ <name>.npz holding its own arrays), without local bookkeeping.
-    parents=True: the parent chain goes to dst/<its directory name> (see copy_parent), self-contained.
-    parents=False (uploads): the parent is only referenced, as <its directory name>/edit.json (parent/ or champion/
-    in a task); it is already published, and the subnet puts the published chain there before building. Returns
-    the new spec path."""
-    src, dst = Path(spec_path), Path(dst)
-    spec, arrays, keys = json.load(open(src)), {}, {}
-    for op in spec["ops"]:
-        for k in ARRAY_FIELDS:
-            ref = op.get(k)
-            if isinstance(ref, str):
-                if ref not in keys:  # one stored array per distinct reference
-                    path, _, key = ref.partition("#")
-                    new, i = key or Path(path).stem, 1
-                    while new in arrays:
-                        new, i = f"{key or Path(path).stem}_{i}", i + 1
-                    arrays[new], keys[ref] = _resolve(ref, src.parent), new
-                op[k] = f"{name}.npz#{keys[ref]}"
-    if spec.get("parent"):
-        where = start_dir(src.parent / spec["parent"])
-        spec["parent"] = (os.path.relpath(copy_parent(src.parent / spec["parent"], dst / where), dst) if parents
-                          else f"{where}/{PUBLISHED}")
+def _carry(links, name):
+    """The ops of links [(spec, its directory)], in order, with every array they reference moved to name.npz
+    (one stored array per distinct file and reference) -> (ops, arrays)."""
+    ops, arrays, keys = [], {}, {}
+    for spec, d in links:
+        for op in spec["ops"]:
+            op = dict(op)
+            for k in ARRAY_FIELDS:
+                ref = op.get(k)
+                if isinstance(ref, str):
+                    src = (Path(d).resolve(), ref)
+                    if src not in keys:
+                        path, _, key = ref.partition("#")
+                        new, i = key or Path(path).stem, 1
+                        while new in arrays:
+                            new, i = f"{key or Path(path).stem}_{i}", i + 1
+                        arrays[new], keys[src] = _resolve(ref, d), new
+                    op[k] = f"{name}.npz#{keys[src]}"
+            ops.append(op)
+    return ops, arrays
+
+
+def _write(dst, name, spec, ops, arrays):
     dst.mkdir(parents=True, exist_ok=True)
     if arrays:
         np.savez(dst / f"{name}.npz", **arrays)
-    write_json(dst / f"{name}.json", {k: spec[k] for k in ("base", "parent", "ops") if k in spec})  # nothing else
+    out = {"base": spec["base"], **({"parent": spec["parent"]} if spec.get("parent") else {}), "ops": ops}
+    write_json(dst / f"{name}.json", out)  # nothing else
     return dst / f"{name}.json"
+
+
+def export(spec_path, dst, name):
+    """Copy a spec into dst as <name>.json (+ <name>.npz holding its own arrays), without local bookkeeping, its
+    parent chain under dst/<its directory name> (see copy_parent): self-contained. Returns the new spec path."""
+    src, dst = Path(spec_path), Path(dst)
+    spec = json.load(open(src))
+    ops, arrays = _carry([(spec, src.parent)], name)
+    if spec.get("parent"):
+        where = start_dir(src.parent / spec["parent"])
+        spec["parent"] = os.path.relpath(copy_parent(src.parent / spec["parent"], dst / where), dst)
+    return _write(dst, name, spec, ops, arrays)
+
+
+STARTS = ("parent", "champion")  # the published edits an upload may stack on (rules.json -> edit.inheritance)
+
+
+def export_upload(spec_path, dst, start=None):
+    """Write a spec as an upload, dst/edit.json (+ edit.npz), that builds the same model from what the protocol can
+    reference: the base, or a published start of the task as "<start>/edit.json" (not uploaded; the subnet places
+    it). Local edits the spec stacks on (not published) are carried: their ops go into the upload, in order.
+    The published edit nearest in the chain is the start, referenced by its directory name (parent or champion);
+    start: "parent"/"champion" names the task directory it came from, "base" carries the whole chain instead.
+    A chain rounds each link's model to the base dtype and carried ops are rounded once, so where two carried links
+    edit the same tensor the upload can differ from the case's model by that rounding.
+    -> (path, what it stacks on: "<start>/edit.json" or "the base", names of the carried local edits)."""
+    chain = load_chain(spec_path)  # also refuses cycles and mixed bases
+    paths, p = [], Path(spec_path).resolve()
+    for spec, _ in reversed(chain):
+        paths.append(p)
+        p = (p.parent / spec["parent"]).resolve() if spec.get("parent") else None
+    paths.reverse()
+    i = max((j for j, q in enumerate(paths[:-1]) if _published(q)), default=None)
+    if start in STARTS and i is None:
+        raise SystemExit(f"--start {start}: this edit stacks on no published edit (it builds from the base)")
+    name = None if i is None else ("base" if start == "base" else start or start_dir(paths[i]))
+    if name not in (None, "base", *STARTS):
+        raise SystemExit(f"this edit stacks on the published edit in {paths[i].parent}; an upload can reference only "
+                         "the task's parent/ or champion/ (rules.json -> edit.inheritance). Pass --start parent or "
+                         "--start champion (the task directory it was copied from), or --start base to carry its "
+                         "whole chain's ops in this edit (built from the base; the limits then count them)")
+    first = 0 if name in (None, "base") else i + 1
+    ops, arrays = _carry(chain[first:], "edit")
+    spec = {"base": chain[-1][0]["base"], "parent": f"{name}/{PUBLISHED}" if first else None}
+    carried = [chain[j][0].get("name") or paths[j].stem for j in range(first, len(chain) - 1)]
+    return _write(Path(dst), "edit", spec, ops, arrays), spec["parent"] or "the base", carried
 
 
 def apply_ops(tensors, ops, base_dir):

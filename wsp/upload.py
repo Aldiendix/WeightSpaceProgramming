@@ -1,10 +1,13 @@
 """Upload a finished task's deliverables to R2 by the fixed protocol in rules.json -> upload.
 
-python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--dry-run | --status]
+python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--start S] [--dry-run | --status]
 
 1. package under $WSP_WORK/deliver/<case>__<edit>/: cases/<case>/edits/<edit>.json -> edit/edit.json (base, parent,
-   ops; a parent is referenced as <start>/edit.json, start = parent or champion, not uploaded: it is already
-   published) with every array an op reads in edit/edit.npz (none: no edit.npz; inline lists stay in edit.json),
+   ops) with every array an op reads in edit/edit.npz (none: no edit.npz; inline lists stay in edit.json). The
+   edit it stacks on is referenced as parent/edit.json or champion/edit.json (the task's directory it was copied
+   from, by its name; another name needs --start parent|champion) and not uploaded: it is already published.
+   Local edits in between are carried: their ops go into the upload. --start base carries the whole chain instead
+   (e.g. a start that is neither the task's parent nor its champion); the limits then count those ops too;
    and the report -> edit/REPORT.md: --report or the case's NOTES.md, then the case's results table (every run,
    paired, holdout runs made before the edit was frozen marked). The package is rebuilt on every call: change the
    case's records or pass --report, not the package. An organizer's check runs on the package's edit/ directory;
@@ -21,7 +24,7 @@ import shutil
 from pathlib import Path
 
 from .common import CASES, WORK, read_json, write_json
-from .edits import export
+from .edits import export_upload
 from .rules import RULES
 
 
@@ -29,10 +32,12 @@ def _sha(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def package(case, edit, report=None):
+def package(case, edit, report=None, start=None):
     out = WORK / "deliver" / f"{case}__{edit}"
     shutil.rmtree(out, ignore_errors=True)
-    export(CASES / case / "edits" / f"{edit}.json", out / "edit", "edit", parents=False)
+    _, on, carried = export_upload(CASES / case / "edits" / f"{edit}.json", out / "edit", start)
+    print(f"[upload] {edit} stacks on {on}" + (f", carrying the ops of {', '.join(carried)}" if carried else ""),
+          flush=True)
     from .case import case_tables  # noqa: PLC0415
     src = Path(report) if report else CASES / case / "NOTES.md"
     if not src.exists():
@@ -104,10 +109,12 @@ def main():
     ap.add_argument("edit")
     ap.add_argument("--report", help="report text (default: the case's NOTES.md); the results table is appended")
     ap.add_argument("--task", help="the subnet's task.json (R2 target and temporary credentials)")
+    ap.add_argument("--start", choices=("parent", "champion", "base"),
+                    help="what the upload stacks on, when the edit's published start is kept under another name")
     ap.add_argument("--dry-run", action="store_true", help="package and print the manifest only")
     ap.add_argument("--status", action="store_true", help="compare the remote manifest with this package; no upload")
     a = ap.parse_args()
-    out, manifest = package(a.case, a.edit, a.report)
+    out, manifest = package(a.case, a.edit, a.report, a.start)
     if a.status:
         print(f"[upload] {status(manifest, *target(a.task))[1]}")
         return

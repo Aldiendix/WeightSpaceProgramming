@@ -117,7 +117,7 @@ def test_built_model_follows_its_sources(tmp_path, tiny_model, monkeypatch):
 def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
     """An uploaded spec builds on its own: arrays referenced by any op field (values included) go into its npz, once
     per distinct reference."""
-    from wsp.edits import export, spec_size
+    from wsp.edits import export_upload, spec_size
     d0, d1 = "model.layers.0.mlp.down_proj.weight", T  # 4 x 6
     rng = np.random.default_rng(0)
     np.savez(tmp_path / "E1.npz", w=rng.standard_normal((1, 6)).astype(np.float32),
@@ -126,7 +126,8 @@ def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
                             {"op": "set_rows", "tensor": d1, "rows": [2], "values": "E1.npz#w"},
                             {"op": "set_cols", "tensor": d1, "cols": [3], "values": "E1.npz#down"},
                             {"op": "dir_ablate", "tensor": d0, "u": "E1.npz#u", "alpha": 1.0}])
-    out = export(spec, tmp_path / "up" / "edit", "edit", parents=False)
+    out, on, carried = export_upload(spec, tmp_path / "up" / "edit")
+    assert on == "the base" and carried == []
     refs = [v for op in json.loads(out.read_text())["ops"] for k, v in op.items() if isinstance(v, str) and "#" in v]
     assert refs and all(r.startswith("edit.npz#") for r in refs)
     assert sorted(np.load(tmp_path / "up" / "edit" / "edit.npz").files) == ["down", "u", "w"]
@@ -165,3 +166,70 @@ def test_attention_output_of_hybrid_layers():
                                                         (3, "self_attn.o_proj"), (3, "self_attn.q_proj"))}
     assert attn_out(idx, "m.", 0) == "m.layers.0.linear_attn.out_proj.weight"
     assert attn_out(idx, "m.", 3) == "m.layers.3.self_attn.o_proj.weight"
+
+
+def test_upload_builds_the_case_model_from_what_the_protocol_references(tmp_path, tiny_model):
+    """Local edits a spec stacks on are carried into the upload; a published start is referenced by the task directory
+    it came from (named, or given by start); start="base" carries the whole chain. Each upload builds the model the
+    case built (here bit for bit: the only tensor two links edit is then scaled by 0.5, which rounds exactly)."""
+    import os
+
+    import pytest
+    from wsp.edits import export_upload
+    d0, d1 = (f"model.layers.{i}.mlp.down_proj.weight" for i in (0, 1))
+    pub = tmp_path / "task" / "champion" / "edit"  # published start: base <- p
+    pub.mkdir(parents=True)
+    np.savez(pub / "edit.npz", u=np.array([1.0, 1.0, 0, 0], np.float32))
+    (pub / "edit.json").write_text(json.dumps({"base": "b", "ops": [
+        {"op": "dir_ablate", "tensor": d0, "u": "edit.npz#u", "alpha": 1.0}]}))
+
+    def case(start_dir, name):
+        import shutil
+        c = tmp_path / name
+        shutil.copytree(pub, c / start_dir)
+        (c / "edits").mkdir()
+        np.savez(c / "edits" / "edit.npz", u=np.array([0, 0, 1.0, 1.0], np.float32))  # same file name as the start's
+        (c / "edits" / "L.json").write_text(json.dumps({"name": "L", "base": "b", "parent": f"../{start_dir}/edit.json",
+                                                        "ops": [{"op": "dir_ablate", "tensor": d1, "u": "edit.npz#u",
+                                                                 "alpha": 1.0}]}))  # a local edit on the start
+        (c / "edits" / "E.json").write_text(json.dumps({"name": "E", "base": "b", "parent": "L.json", "ops": [
+            {"op": "scale_cols", "tensor": d1, "cols": [0], "factor": 0.5}]}))
+        return c / "edits" / "E.json"
+
+    def same_model(spec, up, place=None):
+        if place:  # the subnet places the published start where the upload points
+            import shutil
+            shutil.copytree(pub, up.parent / place)
+        _, m1 = build(spec, tmp_path / "m" / os.urandom(4).hex(), base_dir=tiny_model)
+        _, m2 = build(up, tmp_path / "m" / os.urandom(4).hex(), base_dir=tiny_model)
+        return {t["name"]: t["edited_sha256"] for t in m1["tensors"]} == \
+            {t["name"]: t["edited_sha256"] for t in m2["tensors"]}
+
+    spec = case("champion", "c1")  # kept under the task's name: referenced, the local edit carried
+    up, on, carried = export_upload(spec, tmp_path / "u1")
+    s = json.loads(up.read_text())
+    assert on == "champion/edit.json" == s["parent"] and carried == ["L"] and len(s["ops"]) == 2
+    assert same_model(spec, up, "champion")
+
+    spec = case("0009538688-0019", "c2")  # kept under another name: which task directory it is must be said
+    with pytest.raises(SystemExit, match="--start"):
+        export_upload(spec, tmp_path / "u2")
+    up, on, _ = export_upload(spec, tmp_path / "u2", start="champion")
+    assert on == "champion/edit.json" and same_model(spec, up, "champion")
+    up, on, carried = export_upload(spec, tmp_path / "u3", start="base")  # or carry the whole chain from the base
+    s = json.loads(up.read_text())
+    assert on == "the base" and "parent" not in s and len(s["ops"]) == 3 and carried == ["edit", "L"]
+    assert len(np.load(tmp_path / "u3" / "edit.npz").files) == 2  # two files' "edit.npz#u": two arrays
+    assert same_model(spec, up)
+    with pytest.raises(SystemExit):
+        export_upload(tmp_path / "c1" / "champion" / "edit.json", tmp_path / "u4", start="parent")  # no start
+
+    from wsp.edits import copy_parent  # a local edit named "edit" is still local when another case stacks on it
+    local = json.loads((tmp_path / "c1" / "edits" / "L.json").read_text())
+    (tmp_path / "c1" / "edits" / "edit.json").write_text(json.dumps({k: v for k, v in local.items() if k != "name"}))
+    start = copy_parent(tmp_path / "c1" / "edits" / "edit.json", tmp_path / "c3" / "parent")
+    (tmp_path / "c3" / "edits").mkdir()
+    (tmp_path / "c3" / "edits" / "E.json").write_text(json.dumps({"name": "E", "base": "b", "ops": [],
+                                                                  "parent": os.path.relpath(start, tmp_path / "c3" / "edits")}))
+    up, on, carried = export_upload(tmp_path / "c3" / "edits" / "E.json", tmp_path / "u5")
+    assert start.name == "edit_local.json" and on == "champion/edit.json" and carried == ["edit_local"]
