@@ -64,12 +64,6 @@ Everything is derived in the run, from the toolkit's practice sets and the model
   cut share by more than 15 points (more than layer 2 can close), FINAL is the same direction at -0.92, else FINAL is
   the chosen reverse. Class GOOD if the chosen gain >= max(1 point, 1 SE), SAFE if it is > 0; with no seed above 0,
   FINAL is the chosen seed at -0.92, class NONE, and the chain goes on as layer 1 alone (section 6).
-- **Why choose a seed rather than average them.** In the author's practice runs on the champion #66, reverses of
-  single seeds at -1.83 gained between +0.4 and +2.8 points on a fresh gsm8k practice screen (x4, SE about 1), and the
-  seed that gained +2.8 there also gained +2.8 on GSM8K itself (a second, independent measurement): seeds differ for
-  real, not only by the noise of the screen. Averaging seeds did not keep the good ones' gain: the mean direction of
-  7 seeds gained +1.1, of 4 others +1.0. A choice by a screen of SE about 1 also picks some noise, so the chosen
-  seed's screen gain overstates its real gain; it is reported as such, and layer 2's own rules do not depend on it.
 
 ## 3. Layer 2: close stuck thinking at a newline, then commit the answer
 Layer 2 is the wrap-up and commit procedure of submission 0009538688-0062 (wrapup-commit), fitted here on layer 1's
