@@ -45,8 +45,8 @@ def test_paired():
 
 def test_practice_and_prompts():
     items = data.load("practice:all")
-    assert len(items) > 10000 and all(r["task"] == "math" for r in items[:10])
-    r = items[0]
+    assert len(items) > 10000
+    r = next(x for x in items if x["task"] == "math")
     assert data.user_message(r) == r["problem"].rstrip() + \
         "\nPlease reason step by step, and put your final answer within \\boxed{}."
     a, b = data.balanced_sample(64, 1), data.balanced_sample(64, 1)
@@ -100,6 +100,18 @@ def test_model_name_with_sampling_overrides():
         ("base", {"repetition_penalty": 1.1, "temperature": 0.7})
     assert case.split_model("base@hint=concise") == ("base", {"hint": "concise"})
     assert case.split_model("base@max_tokens=12000") == ("base", {"max_tokens": 12000})  # an int for vLLM
+
+
+def test_puzzle_practice_is_solved_and_graded():
+    """practice:bbhsynth: every generated kind, its own answer graded correct; an option is named by letter, with or
+    without its text."""
+    from wsp.puzzles import generators
+    rows = data.load("practice:bbhsynth")
+    assert len({r["id"] for r in rows}) == len(rows) and {r["subject"] for r in rows} == set(generators())
+    assert all(score(r, f"so \\boxed{{{r['answer']}}}", "stop", False)["kind"] == "correct" for r in rows)
+    item = next(r for r in rows if r["answer"] == "(B)")
+    for box, ok in (("B", True), ("(B) the text", True), ("B. the text", True), ("A circle", False), ("(A)", False)):
+        assert (score(item, f"\\boxed{{{box}}}", "stop", False)["kind"] == "correct") == ok, box
 
 
 def test_choice_unboxed_answers():
@@ -207,7 +219,7 @@ def test_math_grading_off_the_main_thread_raises():
 def test_practice_has_no_benchmark_question():
     from wsp import data
     fps = data.bench_fingerprints()
-    assert len(fps) > 2900
+    assert len(fps) > 9000  # BBH: every test question, whichever tasks are evaluated
     hits = [r["id"] for r in data.load("practice:all") if data.fingerprint(r["problem"]) in fps]
     assert not hits, hits
 

@@ -105,6 +105,9 @@ def _exact(item, answer):
         x = re.sub(r"\\text\{([^}]*)\}", r"\1", x).strip().strip(".").lower()
         x = re.sub(r"^\((.*)\)$", r"\1", x).strip()
         return " ".join(x.replace(",", " ").split())  # word lists: "a, b" == "a b"
+    if pred is not None and re.fullmatch(r"\([A-R]\)", item["answer"]):  # an option, named with its text too
+        m = re.match(r"\s*(?:\\text\{)?\s*(?:\(([A-R])\)|([A-R])(?:[.)]?\s*$|[.)]\s))", pred)
+        return pred, bool(m) and (m.group(1) or m.group(2)) == item["answer"][1]
     return pred, pred is not None and norm(pred) == norm(item["answer"])
 
 

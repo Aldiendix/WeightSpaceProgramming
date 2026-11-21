@@ -14,6 +14,7 @@ wsp/            toolkit (python -m wsp.<module> -h for each CLI)
   fit.py        gains fitted on the model's own correct answers (self-distillation), written as scale_cols
   profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
   data.py       practice sets (no benchmarks)              grade.py  graders, failure kinds
+  puzzles.py    generated reasoning puzzles (practice:bbhsynth)
   gen.py        vLLM generation with per-problem seeds      stats.py  summaries, paired comparisons
   probe.py      teacher-forced activation / log-prob reads  directions.py  contrast pairs, directions, writers
   edits.py      declarative edit specs -> model dir + manifest (stacking on a parent)
@@ -43,7 +44,7 @@ Code: MIT (`LICENSE`). Practice data comes from GSM8K, MATH and MMLU-Pro (each M
 IFEval-style constraints to GSM8K train questions; `tuluif` is 1024 prompts of
 [allenai/RLVR-IFeval](https://huggingface.co/datasets/allenai/RLVR-IFeval) (Tulu 3, ODC-BY, revision 47c03c7), kept
 where the constraint means exactly what an official checker tests and the request shares no 8-word span with the
-evaluation.
+evaluation; `bbhsynth` is reasoning puzzles of BIG-Bench Hard's kinds, written and solved by `wsp/puzzles.py`.
 
 ## Repository protocol
 Everything here should raise what an editing agent can do; the rest stays out, so the repository does not grow

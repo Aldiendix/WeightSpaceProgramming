@@ -49,7 +49,7 @@ You are the editor: you decide what to change from measurements of what parts of
    `screen <profiles...>` and `report`. A removable failure must dominate and `acc when finished` be far above
    `acc`; read failing answers yourself. Without that, editing is unlikely to help: say so instead of forcing an
    edit.
-2. **Init**: `init <case> --profile P --practice gsm8k_train math_train mmlupro ifsynth tuluif --subset
+2. **Init**: `init <case> --profile P --practice gsm8k_train math_train mmlupro ifsynth tuluif bbhsynth --subset
    dev128=dev:128 --subset holdout256=holdout:256`, then `run <case> base dev`. Cover every practice task type
    (`wsp/data.py`), since an edit that helps one type can hurt another (without `--practice` the splits are math
    only); a subset takes equally many problems of each source. To build on a published
