@@ -3,10 +3,10 @@
 python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--start SID|base] [--dry-run | --status]
 
 1. package under $WSP_WORK/deliver/<case>__<edit>/: cases/<case>/edits/<edit>.json -> edit/edit.json (base, parent,
-   ops) with every array an op reads in edit/edit.npz (none: no edit.npz; inline lists stay in edit.json). "parent"
-   is always written: the sid of the published edit it stacks on, which is the name the case keeps it under (init
-   --parent <sid>/edit/edit.json keeps a task's start as <sid>/edit/; otherwise --start <sid>), not uploaded since it
-   is already published; or the base as <hf_repo>@<revision>. With --task the sid must be one of the task's starts.
+   ops) with every array an op reads, inline lists too, in edit/edit.npz (none: no edit.npz). "parent" is always
+   written: the sid of the published edit it stacks on, which is the name the case keeps it under (init --parent
+   <sid>/edit/edit.json keeps a task's start as <sid>/edit/; otherwise --start <sid>), not uploaded since it is already
+   published; or the base as <hf_repo>@<revision>. With --task the sid must be one of the task's starts.
    Local edits in between are carried: their ops go into the upload. --start base carries the whole chain instead
    (e.g. a start the task does not offer); the limits then count those ops too;
    and the report -> edit/REPORT.md: --report or the case's NOTES.md, then the case's results table (every run,

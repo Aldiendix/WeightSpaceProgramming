@@ -135,9 +135,10 @@ def copy_parent(spec_path, dst):
 
 
 def _carry(links, name):
-    """The ops of links [(spec, its directory)], in order, with every array they reference moved to name.npz
-    (one stored array per distinct file and reference), and after every link but the last a round of each tensor it
-    edited, as building the chain rounds each link's model: the ops build exactly the chain's model -> (ops, arrays)."""
+    """The ops of links [(spec, its directory)], in order, with every array they reference or hold inline moved to
+    name.npz (one stored array per distinct file and reference, or inline list), and after every link but the last a
+    round of each tensor it edited, as building the chain rounds each link's model: the ops build exactly the chain's
+    model -> (ops, arrays)."""
     ops, arrays, keys = [], {}, {}
     for j, (spec, d) in enumerate(links):
         if j:
@@ -146,14 +147,17 @@ def _carry(links, name):
             op = dict(op)
             for k in ARRAY_FIELDS:
                 ref = op.get(k)
-                if isinstance(ref, str):
-                    src = (Path(d).resolve(), ref)
+                if isinstance(ref, (str, list)):
+                    src = (Path(d).resolve(), ref) if isinstance(ref, str) else json.dumps(ref)
                     if src not in keys:
-                        path, _, key = ref.partition("#")
+                        path, _, key = ref.partition("#") if isinstance(ref, str) else ("", "", k)
                         new, i = key or Path(path).stem, 1
                         while new in arrays:
                             new, i = f"{key or Path(path).stem}_{i}", i + 1
-                        arrays[new], keys[src] = _resolve(ref, d), new
+                        a = _resolve(ref, d)
+                        if isinstance(ref, list):  # stored as spec_size counts it; builds the same float32 / long
+                            a = a.astype(np.float32 if a.dtype.kind == "f" else np.int64)
+                        arrays[new], keys[src] = a, new
                     op[k] = f"{name}.npz#{keys[src]}"
             ops.append(op)
     return ops, arrays

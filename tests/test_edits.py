@@ -116,8 +116,8 @@ def test_built_model_follows_its_sources(tmp_path, tiny_model, monkeypatch):
 
 
 def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
-    """An uploaded spec builds on its own: arrays referenced by any op field (values included) go into its npz, once
-    per distinct reference."""
+    """An uploaded spec builds on its own: arrays referenced by any op field (values included) or written inline go
+    into its npz, once per distinct reference or list; the payload and the built model stay the same."""
     from wsp.edits import export_upload, spec_size
     d0, d1 = "model.layers.0.mlp.down_proj.weight", T  # 4 x 6
     rng = np.random.default_rng(0)
@@ -126,12 +126,16 @@ def test_export_carries_every_array_an_op_reads(tmp_path, tiny_model):
     spec = _spec(tmp_path, [{"op": "set_rows", "tensor": d0, "rows": [3], "values": "E1.npz#w"},
                             {"op": "set_rows", "tensor": d1, "rows": [2], "values": "E1.npz#w"},
                             {"op": "set_cols", "tensor": d1, "cols": [3], "values": "E1.npz#down"},
+                            {"op": "set_cols", "tensor": d0, "cols": [5], "values": [0.1, -2.3, 0.7, 1e-3]},
                             {"op": "dir_ablate", "tensor": d0, "u": "E1.npz#u", "alpha": 1.0}])
     out, on, carried = export_upload(spec, tmp_path / "up" / "edit")
     assert on == "Qwen/Qwen3.5-0.8B@2fc06364715b967f1860aea9cf38778875588b17" and carried == []
-    refs = [v for op in json.loads(out.read_text())["ops"] for k, v in op.items() if isinstance(v, str) and "#" in v]
-    assert refs and all(r.startswith("edit.npz#") for r in refs)
-    assert sorted(np.load(tmp_path / "up" / "edit" / "edit.npz").files) == ["down", "u", "w"]
+    ops = json.loads(out.read_text())["ops"]
+    refs = [v for op in ops for k, v in op.items() if isinstance(v, str) and "#" in v]
+    assert refs and all(r.startswith("edit.npz#") for r in refs) and not any(isinstance(v, list) for op in ops
+                                                                              for v in op.values())
+    assert sorted(np.load(tmp_path / "up" / "edit" / "edit.npz").files) == [  # equal lists ([3]) stored once
+        "cols", "down", "rows", "rows_1", "u", "values", "w"]
     assert spec_size(out) == spec_size(spec)
     _, m1 = build(spec, tmp_path / "m1", base_dir=tiny_model)
     _, m2 = build(out, tmp_path / "m2", base_dir=tiny_model)
@@ -332,7 +336,8 @@ def test_flattened_chain_builds_the_chain_bit_for_bit(tmp_path, tiny_model):
     out.mkdir()
     np.savez(out / "edit.npz", **arrays)
     (out / "edit.json").write_text(json.dumps(flat))
-    assert len(arrays) == 6 and len(load_chain(out / "edit.json")) == 1  # 2 links x 3 arrays, kept apart; on the base
+    assert len(arrays) == 11 and len(load_chain(out / "edit.json")) == 1  # 2 links x 3 arrays, kept apart, and the
+    # 5 distinct inline lists; on the base
 
     def model(spec):
         _, m = build(spec, tmp_path / "m" / os.urandom(4).hex(), base_dir=tiny_model)
