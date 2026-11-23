@@ -52,7 +52,8 @@ You are the editor: you decide what to change from measurements of what parts of
 2. **Init**: `init <case> --profile P --practice gsm8k_train math_train mmlupro ifsynth tuluif bbhsynth --subset
    dev128=dev:128 --subset holdout256=holdout:256`, then `run <case> base dev`. Cover every practice task type
    (`wsp/data.py`), since an edit that helps one type can hurt another (without `--practice` the splits are math
-   only); a subset takes equally many problems of each source. To build on a published
+   only); a subset takes equally many problems of each source. `mmlucf` (exam questions) and `musr` (questions after
+   a long story) are more multiple choice, for fit sets and wider checks (`split --practice`). To build on a published
    edit, add `--parent <its edit.json>`: "base" is then that model, and your edits stack on it. A task holds each
    start it offers in `<sid>/edit/` (`task.json` -> `starts` says which is the entry's parent and which the current
    champion); screen them and start from the one that suits the method (`--parent <sid>/edit/edit.json`: the
@@ -72,21 +73,26 @@ You are the editor: you decide what to change from measurements of what parts of
    gap only when it is about twice its SE; when it is not, add samples (`run --n` adds only the missing ones) or
    DEV problems rather than choosing on HOLDOUT. Look at every source, not only the pooled gain.
    When the failure has no stable direction but the model often solves a problem in some samples and not in
-   others, `wsp.fit` fits gains on its own correct practice answers (`-h`; `split` makes a set for it).
+   others (`pass_at_k` well above `acc` in a run with `--n 4`), fit on its own samples: `split <case> fit --n 1024`,
+   `run <case> base fit --n 4`, then `python -m wsp.fit run` (`-h`: passing answers, advantages or passing vs
+   failing pairs; per-unit gains or singular-value scales; `branch` resamples answers after the same thinking).
+   Fit several seeds and average them (`wsp.fit spec`), and run the shuffled control.
 6. **Freeze** the best edit (`freeze <case> <edit>`), then `run <case> base holdout256` and `run <case> <edit>
    holdout256`.
-   `edit` writes `dir_ablate` specs; any other allowed op is written by hand (or by `wsp.gate.ops` for one MLP
-   unit) into `cases/<case>/edits/<name>.json`. Lists may instead be `"file.npz#key"` relative to the spec;
-   `tensor` is a full name from the base's safetensors index (`wsp/edits.py` has the exact semantics):
-   ```
-   {"name": "E1", "base": "<profile>", "parent": "../<case.json parent>" (when stacking), "ops": [
-    {"op": "dir_ablate", "tensor": "...layers.15.mlp.down_proj.weight", "side": "out", "u": "E1.npz#u15",
-     "alpha": 6.0, "cols": [3, 17]},                                   # cols optional: all columns
-    {"op": "scale_rows", "tensor": "...layers.4.mlp.up_proj.weight", "rows": [11], "factor": 0.5},
-    {"op": "scale_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "factor": 0.5},
-    {"op": "set_rows", "tensor": "...layers.4.mlp.gate_proj.weight", "rows": [11], "values": "E1.npz#gate"},
-    {"op": "set_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "values": "E1.npz#down"}]}
-   ```
-   `values` is len(rows) x in for `set_rows`, out x len(cols) for `set_cols`.
 7. **Deliver**: `report`, update NOTES (and `playbook.md` outside competition tasks), then the final
    `python -m wsp.upload <case> <edit> [--task task.json]` (see "Time budget").
+
+## Spec format
+`edit` writes `dir_ablate` specs; any other allowed op is written by hand (or by `wsp.gate.ops` for one MLP
+unit) into `cases/<case>/edits/<name>.json`. Lists may instead be `"file.npz#key"` relative to the spec;
+`tensor` is a full name from the base's safetensors index (`wsp/edits.py` has the exact semantics):
+```
+{"name": "E1", "base": "<profile>", "parent": "../<case.json parent>" (when stacking), "ops": [
+ {"op": "dir_ablate", "tensor": "...layers.15.mlp.down_proj.weight", "side": "out", "u": "E1.npz#u15",
+  "alpha": 6.0, "cols": [3, 17]},                                   # cols optional: all columns
+ {"op": "scale_rows", "tensor": "...layers.4.mlp.up_proj.weight", "rows": [11], "factor": 0.5},
+ {"op": "scale_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "factor": 0.5},
+ {"op": "set_rows", "tensor": "...layers.4.mlp.gate_proj.weight", "rows": [11], "values": "E1.npz#gate"},
+ {"op": "set_cols", "tensor": "...layers.4.mlp.down_proj.weight", "cols": [11], "values": "E1.npz#down"}]}
+```
+`values` is len(rows) x in for `set_rows`, out x len(cols) for `set_cols`.

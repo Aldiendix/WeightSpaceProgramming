@@ -93,6 +93,8 @@ def _shard(gpu, smi_ids, args, kw):
     if smi_ids:  # ids numbered as nvidia-smi lists them
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu
+    # compiled kernels: a cache per GPU, since engines starting side by side race on a shared one (cold cache)
+    os.environ["TRITON_CACHE_DIR"] = os.path.expanduser(f"~/.triton/cache-gpu{gpu}")
     return os.getpgid(0), _generate(*args, **kw)
 
 
@@ -102,7 +104,8 @@ def generate(model, items, profile, n=1, out=None, salt="s0", gpu_mem=0.90, max_
     draws: a run extended later is equivalent to one generated at once, not identical to it.
     sampling: overrides of the profile's sampling (decoding baselines), plus "hint": a data.HINTS name,
     "penalize": words joined by "+" whose first tokens get logit bias "bias" (default -2), "think": 0 / 1 to switch
-    the chat template's thinking mode while keeping the profile's sampling and token limit.
+    the chat template's thinking mode while keeping the profile's sampling and token limit. An item with a "prefix"
+    continues that start of an answer (a branch); its row's text includes it ("prefix_chars": its length).
     The problems are split over the visible GPUs that are free (one vLLM process each, in a process group that is
     killed with the run); to run independent jobs side by side, give each its own CUDA_VISIBLE_DEVICES. The workers
     are spawned: a script calling this must do so under `if __name__ == "__main__":`."""
@@ -149,7 +152,7 @@ def _generate(model, items, profile, n=1, k0=0, salt="s0", gpu_mem=0.90, max_tok
     # an edited model dir symlinks the base files, so it has the base's tokenizer and chat template
     from transformers import AutoTokenizer  # noqa: PLC0415
     tok0 = AutoTokenizer.from_pretrained(str(model))  # room for the longest prompt (long-context sets)
-    longest = max((len(tok0(user_message(r, hint)).input_ids) for r in items), default=0)
+    longest = max((len(tok0(user_message(r, hint) + r.get("prefix", "")).input_ids) for r in items), default=0)
     kw = dict(model=str(model), dtype="bfloat16", max_model_len=samp["max_tokens"] + max(CONTEXT_MARGIN, longest + 256),
               gpu_memory_utilization=gpu_mem, enable_prefix_caching=True, seed=0)
     if _is_multimodal(model):
@@ -163,6 +166,7 @@ def _generate(model, items, profile, n=1, k0=0, salt="s0", gpu_mem=0.90, max_tok
     for r in items:
         prompt = tok.apply_chat_template([{"role": "user", "content": user_message(r, hint)}], tokenize=False,
                                          add_generation_prompt=True, enable_thinking=profile["thinking"])
+        prompt += r.get("prefix", "")  # a branch: the sample continues the given start of an answer
         reqs += [(r, k, prompt) for k in range(k0.get(r["id"], 0) if isinstance(k0, dict) else k0, n)]
     t0 = time.time()
     outs = llm.generate([p for _, _, p in reqs], [SamplingParams(seed=stable_seed(r["id"], k, salt), **samp)
@@ -170,10 +174,11 @@ def _generate(model, items, profile, n=1, k0=0, salt="s0", gpu_mem=0.90, max_tok
     dt = time.time() - t0
     rows = []
     for (r, k, _), o in zip(reqs, outs):
-        c = o.outputs[0]
+        c, pre = o.outputs[0], r.get("prefix", "")
         rows.append({"id": r["id"], "k": k, "source": r.get("source"), "gold": r.get("answer"),
                      "n_tokens": len(c.token_ids), "finish": c.finish_reason,
-                     **score(r, c.text, c.finish_reason, profile["thinking"]), "text": c.text})
+                     **score(r, pre + c.text, c.finish_reason, profile["thinking"]), "text": pre + c.text,
+                     **({"prefix_chars": len(pre)} if pre else {})})
     ntok = sum(r["n_tokens"] for r in rows)
     print(f"[gen] {len(rows)} answers, {ntok} tokens in {dt:.0f}s ({ntok / max(dt, 1):.0f} tok/s)", flush=True)
     return rows

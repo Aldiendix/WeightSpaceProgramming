@@ -33,8 +33,11 @@ def last_boxed(text):
     return None
 
 
+THINK_END = "</think>"  # thinking mode: the answer follows it
+
+
 def answer_part(text):
-    return text.split("</think>")[-1]
+    return text.split(THINK_END)[-1]
 
 
 def tail_dup_ratio(text, n=8, tail_words=1500):
@@ -116,7 +119,7 @@ GRADERS = {"math": _math, "choice": _choice, "exact": _exact, "ifeval": _ifeval}
 
 def score(item, text, finish_reason, thinking):
     cut = finish_reason == "length"
-    closed = (not thinking) or "</think>" in text
+    closed = (not thinking) or THINK_END in text
     err = False
     try:
         pred, correct = GRADERS[item.get("task", "math")](item, answer_part(text)) if closed else (None, False)

@@ -12,8 +12,8 @@ regenerated cheaply and stays useful is kept in git; everything else is reproduc
     results/<model>__<set>.json    {"summary", "paired"}; <model>__selectivity.json; directions.json (per layer)
     NOTES.md                   decisions, by hand
   generated, not kept: RESULTS.md (`report`; the evidence table in playbook.md is the one generated view in git)
-  scratch in $WSP_WORK: runs/<case>/<model>__<set>.jsonl, cases/<case>/{pairs*.json,directions.npz} (edits carry
-    the directions and neurons they use), models/<case>__<model>/
+  scratch in $WSP_WORK: runs/<case>/<model>__<set>[.branches].jsonl, cases/<case>/{pairs*.json,directions.npz,
+    fits/} (edits carry the directions, neurons and values they use), models/<case>__<model>/
 <model> is "base" or an edit name, optionally with sampling overrides "<model>@key=value,..." (a decoding baseline,
 paired with the plain base run); <set> is a case set or subset name, or `bench:<name>`. Generation uses every visible
 GPU (CUDA_VISIBLE_DEVICES); `compare` pairs two edits with each other.
@@ -156,7 +156,8 @@ def _base_run_for(case, keys, tag):
     covering them (e.g. base__dev covers dev128). Variants of a set share ids (e.g. bench:<name>_sug), so the
     same set must win."""
     same = run_path(case, BASE, tag)
-    others = sorted((RUNS / case).glob(f"{BASE}__*.jsonl"), key=lambda p: p.stat().st_size)
+    others = sorted((p for p in (RUNS / case).glob(f"{BASE}__*.jsonl") if not p.stem.endswith(".branches")),
+                    key=lambda p: p.stat().st_size)  # branches are answers after one thinking, not samples
     for p in ([same] if same.exists() else []) + [p for p in others if p != same and is_case_set(case, tag)]:
         rows = read_jsonl(p)
         if keys <= {(r["id"], r["k"]) for r in rows}:
@@ -237,7 +238,48 @@ def cmd_run(a):
     else:
         s = res["summary"]
         print(f"{a.model} on {tag}: acc {_pct(s['acc'])}, cut {_pct(s['cut_share'])}, acc when finished "
-              f"{_pct(s['acc_when_finished'])}")
+              f"{_pct(s['acc_when_finished'])}" + (f", pass@{s['samples']} {_pct(s['pass_at_k'])}" if "samples" in s else ""))
+
+
+def cmd_branch(a):
+    """Resample the answer after each sample's own thinking: <model>__<set>.branches.jsonl, --n answers per thinking
+    of the run <from>__<set> (rows: "from_k" the sample whose thinking they share, "k" the branch). Shows whether a
+    failure is made in the answer (mixed groups: the same thinking, answers right and wrong) and gives the pairs of
+    `wsp.fit run --objective pairs`."""
+    from .gen import generate  # noqa: PLC0415
+    from .grade import THINK_END  # noqa: PLC0415
+
+    prof = profiles.get(conf(a.case)["profile"])
+    tag, items = set_items(a.case, a.set)
+    name, sampling = split_model(a.model)
+    src = run_path(a.case, a.source or a.model, tag)
+    if not src.exists():
+        raise SystemExit(f"no run {src.stem}: run it first (`wsp.case run {a.case} {a.source or a.model} {a.set}`)")
+    idx = {r["id"]: r for r in items}
+    todo = [{**idx[r["id"]], "id": f"{r['id']}#{r['k']}",
+             "prefix": r["text"][:r["text"].index(THINK_END) + len(THINK_END)]}
+            for r in read_jsonl(src) if r["id"] in idx and THINK_END in r["text"]]
+    if not todo:
+        raise SystemExit(f"no sample of {src.stem} closed its thinking")
+    rows = generate(model_path(a.case, name), todo, prof, n=a.n, max_tokens=a.max_tokens, salt="branch",
+                    sampling=sampling)
+    for r in rows:
+        r["id"], _, k = r["id"].rpartition("#")
+        r["from_k"] = int(k)
+    out = run_path(a.case, a.model, f"{tag}.branches")
+    write_jsonl(out, rows)
+    groups = {}
+    for r in rows:
+        groups.setdefault((r["source"], r["id"], r["from_k"]), []).append(bool(r["correct"]) and not r["cut"])
+    by = {}
+    for (source, *_), v in groups.items():
+        b = by.setdefault(source, [0, 0, 0])
+        b[0 if all(v) else 2 if not any(v) else 1] += 1
+    for source, (ok, mixed, bad) in sorted(by.items(), key=lambda kv: str(kv[0])):
+        n = ok + mixed + bad
+        print(f"{source}: {n} thinkings, answers all right {_pct(ok / n)}, mixed {_pct(mixed / n)}, "
+              f"all wrong {_pct(bad / n)}")
+    print(out)
 
 
 def cmd_adopt(a):
@@ -500,6 +542,11 @@ def main():
       (["set"], {"nargs": "+", "help": "the set(s) both were run on; several are pooled"}),
       (["--set-b"], {"nargs": "+", "help": "B's set(s) when they differ (e.g. a subset): only the shared problems count"}),
       help="paired comparison of two models' runs on the problems both have (gain of B over A)")
+    p("branch", case, (["model"], {"help": "base or an edit name: the model that writes the answers"}),
+      (["set"], {"help": "case set whose run gives the thinking"}), (["--source"], {"help": "model whose run gives the "
+                                                                                  "thinking (default: the same)"}),
+      (["--n"], {"type": int, "default": 4}), (["--max-tokens"], {"type": int, "default": 4096}),
+      help="resample answers after each sample's thinking (answer vs thinking failures; pairs for wsp.fit)")
     p("adopt", case, (["edit"], {"help": "a published edit.json, e.g. the champion's in the task, <sid>/edit/edit.json"}),
       (["--name"], {"default": "champion"}),
       help="add a published edit as a model of the case (to compare against it on the case's sets)")

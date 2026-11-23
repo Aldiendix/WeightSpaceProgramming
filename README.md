@@ -10,8 +10,9 @@ submitted ("Submitting").
 ## Layout
 ```
 wsp/            toolkit (python -m wsp.<module> -h for each CLI)
-  case.py       case workflow: screen, init, split, adopt, run, pairs, extract, selectivity, edit, compare, freeze, report
-  fit.py        gains fitted on the model's own correct answers (self-distillation), written as scale_cols
+  case.py       case workflow: screen, init, split, adopt, run, branch, pairs, extract, selectivity, edit, compare, freeze,
+                report
+  fit.py        edits fitted on the model's own samples (passing answers, advantages, passing vs failing pairs)
   profiles.py   base models (HF repo pinned to a revision) and their model-card sampling
   data.py       practice sets (no benchmarks)              grade.py  graders, failure kinds
   puzzles.py    generated reasoning puzzles (practice:bbhsynth)
@@ -64,7 +65,9 @@ with use.
   by hand, and other views (`cases/*/RESULTS.md`) are not kept.
 - **Data**: only the frozen practice sets. The toolkit holds no benchmark and no loader for one: `bench:<name>` reads
   the items the organizer supplies (`$WSP_WORK/data/bench_<name>.jsonl`).
-- **Submissions**: only champions' directories are merged.
+- **Submissions**: only champions' directories are merged. Once what an entry's code can do for others is in
+  `wsp/` (or is not general), its `derive/` and `data/` are removed; its `entry.json` and `METHOD.md` stay, and the
+  pull request keeps the original.
 - **Tooling** that is generic and configuration-driven lives in `tools/`; credentials and machine settings
   (`tools/.config`) are never committed.
 
