@@ -4,8 +4,10 @@ instruction checkers).
 
 practice:<name>   problems the editor may use freely (selection, probing, DEV/HOLDOUT splits), shipped in
                   data/practice/: gsm8k_train, math_train (math), ifsynth and tuluif (instruction following: on
-                  math questions / on varied user requests, see README "License"), mmlupro (multiple choice),
-                  bbhsynth (reasoning puzzles of BIG-Bench Hard's kinds, generated: wsp/puzzles.py). No
+                  math questions / on varied user requests, see README "License"), mmlupro and mmlucf (multiple
+                  choice: graduate level, 10 options / exam questions of 14 fields, 4 options), musr (multiple choice
+                  after a long story: murder mysteries, object placements, team allocation), bbhsynth (reasoning
+                  puzzles of BIG-Bench Hard's kinds, generated: wsp/puzzles.py). No
                   practice question is a benchmark question (data/bench_fingerprints.txt.gz; tests/test_core.py
                   checks it).
 bench:<name>      benchmark items, never in the toolkit: the organizer supplies them as $WSP_WORK/data/bench_<name>.jsonl

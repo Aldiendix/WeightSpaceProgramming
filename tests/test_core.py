@@ -229,7 +229,7 @@ def test_request_practice_is_graded_by_the_official_checkers():
     import pytest
     R = pytest.importorskip("lm_eval.tasks.ifeval.instructions_registry")
     rows = data.load("practice:tuluif")
-    assert len(rows) == 1024 and len({r["id"] for r in rows}) == 1024
+    assert len(rows) == 1348 and len({r["id"] for r in rows}) == 1348
     for r in rows:
         assert r["task"] == "ifeval" and len(r["instruction_id_list"]) == len(r["kwargs"]) == 1, r["id"]
         iid, kw = r["instruction_id_list"][0], r["kwargs"][0]
