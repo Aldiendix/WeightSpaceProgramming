@@ -36,8 +36,17 @@ def test_package_and_upload(tmp_path, monkeypatch):
     monkeypatch.setattr(upload, "CASES", tmp_path / "cases")
     monkeypatch.setattr(wsp_case, "CASES", tmp_path / "cases")
     monkeypatch.setattr(upload, "WORK", tmp_path / "work")
+    export = upload.export_upload
+
+    def leaves_a_tree(spec, edit_dir, *args):  # e.g. a check killed while it built in the package's directory
+        r = export(spec, edit_dir, *args)
+        (edit_dir.parent / "tmpq" / "out").mkdir(parents=True)
+        (edit_dir.parent / "tmpq" / "out" / "edit.json").write_text("{}")
+        return r
+    monkeypatch.setattr(upload, "export_upload", leaves_a_tree)
     out, man = upload.package("c", "e")
-    assert {f["path"] for f in man["files"]} == {"edit/edit.json", "edit/edit.npz", "edit/REPORT.md"}
+    assert [f["path"] for f in man["files"]] == ["edit/edit.json", "edit/edit.npz", "edit/REPORT.md"]  # only these
+    monkeypatch.setattr(upload, "export_upload", export)
     spec = json.loads((out / "edit" / "edit.json").read_text())
     assert spec["ops"][0]["u"] == "edit.npz#u15" and "meta" not in spec
     assert spec["parent"] == "Qwen/Qwen3.5-0.8B@2fc06364715b967f1860aea9cf38778875588b17"  # the base, by its full name

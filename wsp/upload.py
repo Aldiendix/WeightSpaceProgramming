@@ -11,7 +11,9 @@ python -m wsp.upload <case> <edit> [--report FILE] [--task task.json] [--start S
    (e.g. a start the task does not offer); the limits then count those ops too;
    and the report -> edit/REPORT.md: --report or the case's NOTES.md, then the case's results table (every run,
    paired, holdout runs made before the edit was frozen marked). The package is rebuilt on every call: change the
-   case's records or pass --report, not the package. An organizer's check runs on the package's edit/ directory;
+   case's records or pass --report, not the package; only the files rules.json -> upload.files names are listed and
+   sent, so nothing else in the directory (e.g. left by a check) is uploaded. An organizer's check runs on the
+   package's edit/ directory;
 2. upload every file to <prefix>/<path>, then manifest.json last; then read the manifest back and HEAD every file.
 --status reads the remote manifest back and says whether it is this package; nothing is uploaded.
 Credentials: --task (the subnet's task.json, section "r2": endpoint, bucket, prefix, access_key_id,
@@ -51,7 +53,16 @@ def package(case, edit, report=None, start=None, task=None):
         raise SystemExit("no report: pass --report or write the case's NOTES.md")
     (out / "edit" / "REPORT.md").write_text(src.read_text().rstrip() + "\n\n" + case_tables(case))
     print(f"[upload] package {out / 'edit'} (REPORT.md: {src} + the case's results table)", flush=True)
-    files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != "manifest.json")
+    proto = RULES["upload"]["files"]  # only the protocol's files: anything else left in the directory is not sent
+    files = [out / f for f in proto if (out / f).is_file()]
+    missing = [f for f in RULES["upload"]["required"] if not (out / f).is_file()]
+    if missing:
+        raise SystemExit(f"package lacks {', '.join(missing)}")
+    other = [p for p in out.rglob("*") if p.is_file() and p.relative_to(out).as_posix() not in proto
+             and p != out / "manifest.json"]
+    if other:
+        print(f"[upload] {len(other)} file(s) in {out} outside the protocol ignored (e.g. {other[0].relative_to(out)})",
+              flush=True)
     manifest = {"schema": RULES["upload"]["schema"],
                 "files": [{"path": p.relative_to(out).as_posix(), "size": p.stat().st_size, "sha256": _sha(p)}
                           for p in files]}
